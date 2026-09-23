@@ -1,2 +1,0 @@
-dataset,model,default_r,default_r_CI,default_mae,default_mae_CI,default_rmse,default_rmse_CI,default_r2,default_r2_CI,default_seconds
-JHU_fine_TabPFN,TabPFN,0.6955,"[0.620, 0.760]",15.945,"[14.437, 17.539]",20.185,"[18.324, 22.148]",0.4811,"[0.365, 0.574]",575.9

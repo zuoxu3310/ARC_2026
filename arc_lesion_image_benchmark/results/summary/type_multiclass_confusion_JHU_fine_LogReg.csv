@@ -1,7 +1,0 @@
-,pred_Anomic,pred_Broca,pred_Conduction,pred_Global,pred_TranscorticalMotor,pred_Wernicke
-true_Anomic,36,12,6,0,4,1
-true_Broca,6,61,7,9,0,2
-true_Conduction,10,3,9,1,0,3
-true_Global,4,7,0,2,0,1
-true_TranscorticalMotor,2,1,0,0,0,0
-true_Wernicke,0,4,2,1,0,0

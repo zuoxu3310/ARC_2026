@@ -2,7 +2,7 @@
 """Secondary cohort analysis with s18-compatible, frozen OOF predictions.
 
 Train once on the full-pool folds; the analysis stage never fits an estimator.
-See the timestamped ANALYSIS_PLAN.md for estimands and inference limitations.
+The crossed-grid scores provide an independent check of full-pool predictions.
 """
 from __future__ import annotations
 
@@ -75,10 +75,11 @@ def load_data():
 
 def make_provenance(features):
     files = [Path(__file__), Path(base.__file__), Path(base.TABLE),
-             OUT / "ANALYSIS_PLAN.md", Path(base.SUBSET_DIR) / "subset_manifest.csv"]
+             Path(base.SUBSET_DIR) / "subset_manifest.csv"]
     files += sorted(Path(base.SUBSET_DIR).glob("*_ids.txt"))
     files += [ROOT / f"results/runs/grid_{task}_{kind}.csv"
-              for task in TASKS for kind in ["fast", "TabPFN"]]
+              for task in TASKS for kind in ["fast", "TabPFN"]
+              if (ROOT / f"results/runs/grid_{task}_{kind}.csv").exists()]
     packages = ["numpy", "pandas", "scipy", "scikit-learn", "imbalanced-learn",
                 "xgboost", "lightgbm", "matplotlib", "joblib", "threadpoolctl"]
     return {"python": sys.version, "executable": sys.executable,
@@ -264,7 +265,8 @@ def reanalyze_grid(manifest):
     tables = []
     for task in TASKS:
         frame = pd.concat([pd.read_csv(ROOT / f"results/runs/grid_{task}_{tag}.csv")
-                           for tag in ["fast", "TabPFN"]], ignore_index=True)
+                           for tag in ["fast", "TabPFN"]
+                           if (ROOT / f"results/runs/grid_{task}_{tag}.csv").exists()], ignore_index=True)
         assert not frame.duplicated(["task", "subset", "model", "seed"]).any()
         assert (frame.groupby(["subset", "model"]).size() == 20).all()
         tab = frame.groupby(["task", "subset", "category", "model"], as_index=False).agg(

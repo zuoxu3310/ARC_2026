@@ -1,0 +1,30 @@
+seed: 42
+data:
+  path: ../datasets/arc_ds004884/derived_features_arc_demo/merged_artery_participants.tsv
+  sep: "\t"
+  id_col: participant_id
+  target: wab_aq
+  sparse_drop_frac: 0.1
+device: cpu
+cv:
+  protocol: loo
+  kfold_splits: 10
+  kfold_repeats: 10
+bootstrap:
+  n: 2000
+models:
+- Ridge
+- ElasticNet
+- SVR_rbf
+- RandomForest
+- XGBoost
+- LightGBM
+- MLP
+- TabPFN
+baselines:
+  Gibson_SVR_rbf: 0.639
+  Gibson_NN: 0.636
+output:
+  runs_dir: results/runs
+  summary_dir: results/summary
+  reports_dir: reports

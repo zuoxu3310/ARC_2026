@@ -1,0 +1,30 @@
+baselines:
+  Gibson_SVR_rbf: 0.639
+  arterial_coarse_TabPFN: 0.714
+bootstrap:
+  n: 2000
+cv:
+  kfold_repeats: 10
+  kfold_splits: 10
+  protocol: loo
+data:
+  id_col: participant_id
+  path: ../arc_lesion_image_benchmark/data/floor_volume_age.tsv
+  sep: "\t"
+  sparse_drop_frac: 0.1
+  target: wab_aq
+device: cpu
+models:
+- Ridge
+- ElasticNet
+- SVR_rbf
+- RandomForest
+- XGBoost
+- LightGBM
+- MLP
+- TabPFN
+output:
+  reports_dir: ../arc_lesion_image_benchmark/results/floor/reports_dir
+  runs_dir: ../arc_lesion_image_benchmark/results/floor/runs_dir
+  summary_dir: ../arc_lesion_image_benchmark/results/floor/summary_dir
+seed: 42

@@ -1,2 +1,0 @@
-dataset,model,default_r,default_r_CI,default_mae,default_mae_CI,default_rmse,default_rmse_CI,default_r2,default_r2_CI,default_seconds
-arterial_coarse_TabPFN,TabPFN,0.7055,"[0.632, 0.770]",15.753,"[14.196, 17.337]",19.868,"[17.991, 21.828]",0.4973,"[0.387, 0.589]",69.2

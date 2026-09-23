@@ -1,9 +1,0 @@
-cluster,size,members,max_within_abs_rho
-cluster3,3,5_LLSL|7_MCAFL|15_MCAIL,0.724
-cluster7,3,13_MCAOL|19_PCAOL|31_LVL,0.894
-cluster1,2,1_ACAL|3_MLSL,0.649
-cluster2,2,lesion_volume|9_MCAPL,0.79
-cluster6,2,11_MCATL|17_PCATL,0.638
-21_PCTPL,1,21_PCTPL,1.0
-23_ACTPL,1,23_ACTPL,1.0
-age_at_stroke,1,age_at_stroke,1.0

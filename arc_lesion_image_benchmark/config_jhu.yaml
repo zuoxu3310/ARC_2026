@@ -1,0 +1,30 @@
+seed: 42
+data:
+  path: ../arc_lesion_image_benchmark/data/jhu156_features_merged.tsv
+  sep: "\t"
+  id_col: participant_id
+  target: wab_aq
+  sparse_drop_frac: 0.1
+device: cpu
+cv:
+  protocol: loo
+  kfold_splits: 10
+  kfold_repeats: 10
+bootstrap:
+  n: 2000
+models:
+- Ridge
+- ElasticNet
+- SVR_rbf
+- RandomForest
+- XGBoost
+- LightGBM
+- MLP
+- TabPFN
+baselines:
+  arterial_coarse_TabPFN: 0.714
+  Gibson_SVR_rbf: 0.639
+output:
+  runs_dir: ../arc_lesion_image_benchmark/results/runs
+  summary_dir: ../arc_lesion_image_benchmark/results/summary
+  reports_dir: ../arc_lesion_image_benchmark/reports

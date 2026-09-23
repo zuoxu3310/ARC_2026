@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'paper/tables'
+OUT.mkdir(parents=True, exist_ok=True)
 f = pd.read_csv(ROOT / 'arc_lesion_image_benchmark/results/frozen_prediction_control_2026-09-22/frozen_prediction_summary.csv')
 labels = {'full':'Full pool', 'has_dwi':'Diffusion MRI', 'has_rsfmri':'Resting-state fMRI', 'has_taskfmri':'Task fMRI', 'has_flair':'FLAIR', 'multimodal_complete':'Multimodal complete', 'chronic_365':r'$\ge365$ days', 'chronic_180':r'$\ge180$ days', 'aq_le90':r'AQ $\le90$ (secondary)', 'teghipco_idlist':'Published-list intersection (secondary)'}
 rowend = r' \\'

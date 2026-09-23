@@ -1,5 +1,0 @@
-contrast,metric,n_paired,value_A,value_B,delta_A_minus_B,se_boot,ci95_lo,ci95_hi,ci90_lo,ci90_hi,equiv_bound,p_TOST,equivalent_at_0.05,MDE_alpha0.05_power0.8,abs_delta_lt_MDE,B_boot,note
-fine_vs_coarse__RF_default,pearson_r,226,0.7196,0.6952,0.0244,0.0117,0.0018,0.0479,0.0053,0.0441,0.05,0.0144,True,0.0328,True,10000,"equiv bound +/-0.05 r: half of Cohen small effect r=0.10, below any practically meaningful correlation difference"
-tuned_vs_default__RF_JHU_fine,pearson_r,226,0.7224,0.7196,0.0028,0.0037,-0.0045,0.0103,-0.0033,0.009,0.05,0.0,True,0.0105,True,10000,"equiv bound +/-0.05 r: half of Cohen small effect r=0.10, below any practically meaningful correlation difference"
-fine_vs_coarse__RF_default,AUC,226,0.8379,0.8307,0.0072,0.0127,-0.0179,0.0318,-0.0138,0.028,0.05,0.0004,True,0.0356,True,10000,equiv bound +/-0.05 AUC: below the conventional 0.05 threshold for a meaningful diagnostic AUC improvement
-tuned_vs_default__RF_JHU_fine,AUC,226,0.8355,0.8379,-0.0024,0.004,-0.0107,0.0051,-0.0091,0.0039,0.05,0.0,True,0.0112,True,10000,equiv bound +/-0.05 AUC: below the conventional 0.05 threshold for a meaningful diagnostic AUC improvement

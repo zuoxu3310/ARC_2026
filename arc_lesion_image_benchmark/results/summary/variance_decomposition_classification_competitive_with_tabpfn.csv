@@ -1,2 +1,0 @@
-task,scope,eta2_subset,eta2_model,eta2_seed,eta2_resid,sigma2_subset,sigma2_model,sigma2_seed,sigma2_resid,eta2_subset_minus_model_ci_lo,eta2_subset_minus_model_ci_hi,P_subset_gt_model_boot,loo_subset_all_hold,loo_model_all_hold,headline_subset_dominates
-classification,primary_competitive_models_WITH_TabPFN,0.4289,0.2135,0.0109,0.3467,0.00096,0.00052,0.0,0.00071,0.1506,0.2739,1.0,False,True,True

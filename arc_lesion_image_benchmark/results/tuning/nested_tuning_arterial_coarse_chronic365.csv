@@ -1,2 +1,0 @@
-dataset,model,default_r,default_r_CI,default_mae,default_mae_CI,default_rmse,default_rmse_CI,default_r2,default_r2_CI,default_seconds,tuned_r,tuned_r_CI,tuned_mae,tuned_mae_CI,tuned_rmse,tuned_rmse_CI,tuned_r2,tuned_r2_CI,tuned_seconds,tuned_minus_default_r
-arterial_coarse_chronic365,RandomForest,0.6459,"[0.552, 0.725]",16.918,"[15.126, 18.818]",21.201,"[19.113, 23.271]",0.4122,"[0.272, 0.521]",11.7,0.6626,"[0.577, 0.738]",16.696,"[14.898, 18.515]",20.728,"[18.760, 22.665]",0.4381,"[0.317, 0.541]",85.6,0.0167

@@ -1,6 +1,0 @@
-dropped_model,eta2_subset,eta2_model,subset_gt_model
-LightGBM,0.3651,0.2723,True
-LogReg,0.5072,0.2322,True
-RandomForest,0.4221,0.1879,True
-TabPFN,0.5199,0.0527,True
-XGBoost,0.3882,0.2428,True

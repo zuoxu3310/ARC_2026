@@ -1,9 +1,0 @@
-dropped_subset,eta2_subset,eta2_model,subset_gt_model
-chronic_180,0.6442,0.0979,True
-chronic_365,0.635,0.1161,True
-full,0.6337,0.1022,True
-has_dwi,0.642,0.093,True
-has_flair,0.3476,0.2219,True
-has_rsfmri,0.6424,0.0945,True
-has_taskfmri,0.6361,0.1107,True
-multimodal_complete,0.6544,0.1027,True

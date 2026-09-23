@@ -29,7 +29,8 @@ for task in ['regression','classification']:
   rows.append({'task':task,'full_pool_gap_threshold':gap,'n_models':len(chosen),'models':'; '.join(chosen),**e,'cohort_gt_model':e['eta2_subset']>e['eta2_model']})
  for kind in ['fast','TabPFN']:
   p=ROOT/f'arc_lesion_image_benchmark/results/runs/grid_{task}_{kind}.csv'
-  provenance[str(p.relative_to(ROOT))]=hashlib.sha256(p.read_bytes()).hexdigest()
+  if p.exists():
+   provenance[str(p.relative_to(ROOT))]=hashlib.sha256(p.read_bytes()).hexdigest()
 pd.DataFrame(rows).to_csv(OUT/'model_set_sensitivity.csv',index=False)
 pd.DataFrame(rankings).to_csv(OUT/'full_pool_model_ranking.csv',index=False)
 (OUT/'model_set_sensitivity_provenance.json').write_text(json.dumps({'status':'Exploratory analysis specified during manuscript review, 2026-09-22','selection':'All tested models within threshold of best mean full-pool score, including boundary','tasks':['regression','classification'],'thresholds':[.03,.05,.075,.10],'scope':'Full pool plus all seven primary rules','metric_for_selection':'raw r or balanced accuracy, mean of 20 OOF-repeat scores','ANOVA':'Fisher z for regression; raw balanced accuracy for classification','independent_check':'balanced-grid closed-form SS matched Type-II ANOVA within 1e-10','source_sha256':provenance},indent=2)+'\n')

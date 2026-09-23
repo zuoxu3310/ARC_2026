@@ -1,7 +1,0 @@
-class,precision,recall,f1,support
-Broca,0.693,0.718,0.705,85
-Anomic,0.621,0.61,0.615,59
-Conduction,0.375,0.346,0.36,26
-Global,0.154,0.143,0.148,14
-Wernicke,0.0,0.0,0.0,7
-TranscorticalMotor,0.0,0.0,0.0,3

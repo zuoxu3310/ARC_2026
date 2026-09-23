@@ -1,9 +1,0 @@
-task,dataset,model,balanced_acc,macro_f1,accuracy,macro_auc,smote_skips,seconds
-multiclass,arterial_coarse,XGBoost,0.328±0.026,0.327±0.024,0.567±0.029,0.753±0.014,0,137.3
-multiclass,arterial_coarse,RandomForest,0.324±0.016,0.321±0.017,0.571±0.016,0.793±0.009,0,17.5
-multiclass,arterial_coarse,SVM_rbf,0.307±0.025,0.310±0.023,0.499±0.024,0.713±0.014,0,0.7
-multiclass,arterial_coarse,LightGBM,0.305±0.014,0.303±0.017,0.555±0.022,0.718±0.021,0,442.8
-multiclass,arterial_coarse,MLP,0.304±0.020,0.306±0.023,0.542±0.018,0.720±0.020,0,1870.8
-multiclass,arterial_coarse,TabPFN,0.296±0.010,0.283±0.012,0.613±0.014,0.681±0.013,0,616.0
-multiclass,arterial_coarse,LogReg,0.279±0.023,0.275±0.019,0.409±0.026,0.720±0.016,0,0.5
-multiclass,arterial_coarse,Dummy,0.167±0.000,0.102±0.000,0.438±0.000,0.500±0.000,0,0.0

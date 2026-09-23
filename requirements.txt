@@ -12,3 +12,4 @@ nibabel==5.4.2
 pypdf==6.12.2
 joblib==1.5.2
 threadpoolctl==3.6.0
+PyYAML==6.0.3

@@ -1,7 +1,0 @@
-dataset,target,n_estimators,pearson_r,r_CI,mae,rmse,r2,seconds
-arterial_coarse,wab_aq,2,0.7088,"[0.636,0.773]",15.592,19.776,0.5019,138.1
-arterial_coarse,wab_aq,3,0.7241,"[0.656,0.786]",15.234,19.332,0.524,181.6
-arterial_coarse,wab_aq,4,0.7144,"[0.643,0.778]",15.442,19.617,0.5099,230.4
-arterial_coarse,wab_aq,5,0.7129,"[0.640,0.777]",15.5,19.654,0.5081,296.9
-arterial_coarse,wab_aq,6,0.7159,"[0.645,0.779]",15.371,19.569,0.5123,305.0
-arterial_coarse,wab_aq,8,0.7145,"[0.643,0.777]",15.472,19.611,0.5102,425.9

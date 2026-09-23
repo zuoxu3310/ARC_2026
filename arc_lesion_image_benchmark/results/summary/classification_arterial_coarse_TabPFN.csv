@@ -1,2 +1,0 @@
-dataset,model,balanced_acc,auc,f1_severe,mcc,prec_severe,rec_severe,seconds
-arterial_coarse_TabPFN,TabPFN,0.684±0.015,0.804±0.012,0.564±0.022,0.388±0.033,0.619±0.031,0.518±0.021,168.5

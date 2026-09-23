@@ -1,5 +1,0 @@
-atlas,task,n_folds,disjoint_folds,partition_ok,scaler_train_only,real_score,permuted_mean,permuted_sd,chance,permuted_at_chance,verdict
-JHU_fine,regression,50,True,True,True,0.701,-0.021,0.0764,0.0,True,PASS
-JHU_fine,classification,50,True,True,True,0.7563,0.501,0.0277,0.5,True,PASS
-arterial_coarse,regression,50,True,True,True,0.6769,-0.0372,0.0987,0.0,True,PASS
-arterial_coarse,classification,50,True,True,True,0.7396,0.4943,0.0343,0.5,True,PASS

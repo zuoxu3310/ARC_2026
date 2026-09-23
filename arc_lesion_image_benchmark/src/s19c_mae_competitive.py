@@ -1,7 +1,10 @@
 # 一次性: 用"平均误差(MAE,不吃量程)"做方差分解,强模型口径(含/不含 TabPFN),回归。
 import pandas as pd, numpy as np, os
 import statsmodels.formula.api as smf
-RUNS="results/runs"; SUMM="results/summary"
+from pathlib import Path
+PKG = Path(__file__).resolve().parents[1]
+RUNS = PKG / "results/runs"
+SUMM = PKG / "results/summary"
 frames=[pd.read_csv(f"{RUNS}/grid_regression_{t}.csv") for t in ["fast","TabPFN"] if os.path.exists(f"{RUNS}/grid_regression_{t}.csv")]
 df=pd.concat(frames,ignore_index=True)
 PRIMARY=["full","has_dwi","has_rsfmri","has_taskfmri","has_flair","multimodal_complete","chronic_365","chronic_180"]
