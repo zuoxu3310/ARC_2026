@@ -18,3 +18,5 @@ Inputs are downloaded from [ARC / OpenNeuro](https://openneuro.org/datasets/ds00
 The full grid contains 3,000 model/cohort/repeat cells and requires TabPFN model access. For a run without TabPFN, install `requirements.txt` and omit `--tabpfn`; this produces a smaller grid. Re-running `grid` replaces its score files; `fixed` resumes completed training cells and checks their input/code versions.
 
 Analysis and appendix scripts are in `arc_lesion_image_benchmark/src/`; `arc_wab_aq_benchmark/src/` supplies the leave-one-out benchmark. Results are written under the benchmark directories, with figures/tables in `paper/` and model-set sensitivity in `outputs/`. References cited in the manuscript are in [bibliography.bib](bibliography.bib).
+
+Code is licensed under the [MIT License](LICENSE).
