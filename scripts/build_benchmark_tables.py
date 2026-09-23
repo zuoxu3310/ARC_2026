@@ -108,7 +108,7 @@ def check_majority_reference(root, report, hashes):
 def full_pool_table(tables, summaries):
     reg, clf = [x.loc[x.subset.eq("full")].set_index("model") for x in summaries]
     lines = table_start(
-        r"All-model benchmark on the same 226 patients and 71 JHU-based inputs: eight regression learners, seven classification learners, and a separate majority-class reference. Scores are means $\pm$ sample SD across 20 five-fold OOF repeats; SD describes partition variability, not a confidence interval. Each task shares folds across models. MAE is in WAB-AQ points; AUC denotes area under the receiver operating characteristic curve. Dashes identify task-inapplicable entries. The reference uses training-fold class counts without SMOTE and is excluded from the learned-model grid.",
+        r"All-model benchmark on the same 226 patients and 71 JHU-based inputs: eight regression learners, seven classification learners, and a separate majority-class reference. Scores are means $\pm$ sample SD across 20 five-fold OOF repeats. SD describes variability across repeated evaluations, including changes in data partitions and randomized pipeline components; it is not a confidence interval. Each task shares folds across models. MAE is in WAB-AQ points; AUC denotes area under the receiver operating characteristic curve. Dashes identify task-inapplicable entries. The reference uses training-fold class counts without SMOTE and is excluded from the learned-model grid.",
         "tab:full-pool-benchmark", "lrrrr", small=False)
     lines += [r" & \multicolumn{2}{c}{\textbf{Regression}} & \multicolumn{2}{c}{\textbf{Classification}}" + END,
               r"\cmidrule(lr){2-3}\cmidrule(lr){4-5}",
