@@ -1,0 +1,14 @@
+# Python 3.11.8; core training, numerical verification and manuscript figures.
+numpy==1.26.4
+pandas==1.5.1
+scipy==1.16.2
+scikit-learn==1.7.2
+imbalanced-learn==0.14.1
+xgboost==3.1.1
+lightgbm==4.6.0
+matplotlib==3.10.7
+statsmodels==0.14.5
+nibabel==5.4.2
+pypdf==6.12.2
+joblib==1.5.2
+threadpoolctl==3.6.0

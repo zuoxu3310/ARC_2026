@@ -1,0 +1,4 @@
+task,dataset,model,balanced_acc,auc,f1_pos,mcc,prec_pos,rec_pos,smote_skips,seconds
+fluent,floor_volage,SVM_rbf,0.755±0.015,0.805±0.014,0.749±0.016,0.512±0.030,0.802±0.017,0.703±0.020,0,0.1
+fluent,floor_volage,LogReg,0.753±0.007,0.819±0.008,0.752±0.006,0.507±0.013,0.791±0.010,0.718±0.007,0,0.1
+fluent,floor_volage,RandomForest,0.712±0.015,0.771±0.025,0.719±0.018,0.424±0.030,0.737±0.017,0.702±0.031,0,15.4

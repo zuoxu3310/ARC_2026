@@ -1,0 +1,4 @@
+task,dataset,model,balanced_acc,auc,f1_pos,mcc,prec_pos,rec_pos,smote_skips,seconds
+broca,floor_volage,LogReg,0.714±0.011,0.773±0.006,0.676±0.012,0.430±0.023,0.686±0.016,0.666±0.014,0,0.1
+broca,floor_volage,SVM_rbf,0.711±0.012,0.760±0.012,0.694±0.010,0.419±0.023,0.635±0.016,0.765±0.011,0,0.2
+broca,floor_volage,RandomForest,0.667±0.020,0.738±0.016,0.628±0.023,0.334±0.039,0.622±0.021,0.634±0.029,0,14.4

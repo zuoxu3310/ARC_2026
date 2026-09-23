@@ -1,0 +1,11 @@
+task,contrast,mean_diff,ci90_lo,ci90_hi,equiv_bound,equivalent
+regression,vol_1_vs_arterial_33,0.0607,0.0527,0.0689,0.05,False
+regression,arterial_33_vs_brodmann_41,0.0007,-0.0029,0.0044,0.05,True
+regression,brodmann_41_vs_aal_116,0.0005,-0.0027,0.0039,0.05,True
+regression,aal_116_vs_jhu_189,0.0224,0.019,0.0259,0.05,True
+regression,jhu_189_vs_aicha_384,-0.0136,-0.0163,-0.0108,0.05,True
+classification,vol_1_vs_arterial_33,-0.0048,-0.0117,0.0022,0.05,True
+classification,arterial_33_vs_brodmann_41,0.0234,0.0186,0.0282,0.05,True
+classification,brodmann_41_vs_aal_116,-0.0221,-0.0267,-0.0176,0.05,True
+classification,aal_116_vs_jhu_189,-0.0076,-0.0127,-0.0024,0.05,True
+classification,jhu_189_vs_aicha_384,0.0189,0.0137,0.024,0.05,True

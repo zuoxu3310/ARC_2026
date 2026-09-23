@@ -1,0 +1,4 @@
+task,scope,eta2_subset,eta2_model,eta2_seed,eta2_resid,sigma2_subset,sigma2_model,sigma2_seed,sigma2_resid,eta2_subset_minus_model_ci_lo,eta2_subset_minus_model_ci_hi,P_subset_gt_model_boot,loo_subset_all_hold,loo_model_all_hold,headline_subset_dominates
+regression,all_subsets,0.3292,0.5715,0.0018,0.0976,0.01027,0.01639,0.00105,0.00273,-0.2665,-0.2159,0.0,False,False,False
+regression,primary_avail_clinical,0.1178,0.7846,0.0026,0.0951,0.0024,0.01603,2e-05,0.00175,-0.6888,-0.6427,0.0,False,False,False
+regression,primary_competitive_models,0.5995,0.1176,0.0194,0.2635,0.00239,0.00061,3e-05,0.00098,0.4155,0.5411,1.0,True,True,True

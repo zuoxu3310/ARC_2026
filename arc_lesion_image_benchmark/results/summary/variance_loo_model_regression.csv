@@ -1,0 +1,9 @@
+dropped_model,eta2_subset,eta2_model,subset_gt_model
+ElasticNet,0.1195,0.7882,False
+LightGBM,0.1119,0.7956,False
+MLP,0.2144,0.6594,False
+RandomForest,0.1099,0.7847,False
+Ridge,0.1168,0.7965,False
+SVR_rbf,0.0978,0.8046,False
+TabPFN,0.1153,0.782,False
+XGBoost,0.1168,0.7849,False

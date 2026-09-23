@@ -1,0 +1,26 @@
+[
+  {
+    "group": "atlases",
+    "destination": "arc_lesion_image_benchmark/data/raw/atlases/src_AAL.nii.gz",
+    "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/AAL_space-MNI152NLin6_res-1x1x1.nii.gz",
+    "sha256": "89d3dc4ddccbd59483b89f3c47eaacc9353ad1b7e78e9f5514e08aaddcd425c9"
+  },
+  {
+    "group": "atlases",
+    "destination": "arc_lesion_image_benchmark/data/raw/atlases/src_Brodmann.nii.gz",
+    "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/Brodmann_space-MNI152NLin6_res-1x1x1.nii.gz",
+    "sha256": "ddf120fbd5bb1fd119c318bac5d8a825f18a55bb58c48229eb2f2d1c6c01cca9"
+  },
+  {
+    "group": "atlases",
+    "destination": "arc_lesion_image_benchmark/data/raw/atlases/src_AICHAJoliot2015.nii.gz",
+    "url": "https://raw.githubusercontent.com/neurodata/neuroparc/5a5e7469671e65cb58087c47b69d0edb71dc2966/atlases/label/Human/AICHAJoliot2015_space-MNI152NLin6_res-1x1x1.nii.gz",
+    "sha256": "5573fcfead26bd6f744dfa930d38a8568cb76e1e8f6787279a7450642111a3fe"
+  },
+  {
+    "group": "participant-list",
+    "destination": "datasets/arc_ds004884/teghipco_figshare/DLAphasiaSeverityARCSubset.mat",
+    "url": "https://ndownloader.figshare.com/files/41364972",
+    "sha256": "2d633a06a5e9329f1826fb8a2d226ed2698a2f259a9c252b17b89a6f60c17911"
+  }
+]

@@ -1,0 +1,9 @@
+task,对比,指标,差(A-B),p_raw,p_holm,p_fdr_bh,显著@0.05(Holm)
+回归,细 vs 粗 RF(default),Pearson r,+0.0244,0.024,0.192,0.192,False
+回归,细 vs 粗 RF(default),MAE,-0.498,0.097,0.679,0.388,False
+回归,tuned vs default RF(JHU),Pearson r,+0.0028,0.472,1.0,0.644,False
+回归,tuned vs default RF(JHU),MAE,-0.009,0.932,1.0,0.932,False
+分类,细 vs 粗 RF,AUC(DeLong),+0.0072,0.5635,1.0,0.644,False
+分类,细 vs 粗 RF,balanced-acc,+0.0273,0.3358,1.0,0.644,False
+分类,tuned vs default RF,AUC(DeLong),-0.0024,0.5141,1.0,0.644,False
+分类,tuned vs default RF,balanced-acc,+0.0148,0.3568,1.0,0.644,False

@@ -1,0 +1,12 @@
+slice,group,N,MAE,pearson_r,note
+overall,ALL,226,15.416,0.7196,
+lesion_volume_quartile,Q1,57,9.4604,0.3502,
+lesion_volume_quartile,Q2,56,15.4937,0.3515,
+lesion_volume_quartile,Q3,56,20.2436,0.3434,
+lesion_volume_quartile,Q4,57,16.5525,0.1599,
+age_median_split,age<=58,115,17.1331,0.6521,
+age_median_split,age>58,111,13.6371,0.7795,
+sex,M,140,15.9598,0.7217,
+sex,F,86,14.5308,0.6923,
+race,w,178,14.8565,0.7461,
+race,b,47,16.7815,0.7055,"N small: descriptive only, no strong fairness claim"

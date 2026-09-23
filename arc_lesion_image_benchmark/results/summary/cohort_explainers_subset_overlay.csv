@@ -1,0 +1,17 @@
+task,subset,n,actual_score,predicted_score,abs_err
+regression,has_dwi,214,0.6916,0.7172,0.0256
+regression,has_rsfmri,192,0.697,0.7013,0.0043
+regression,has_taskfmri,189,0.6725,0.6527,0.0198
+regression,has_flair,135,0.6317,0.6277,0.004
+regression,multimodal_complete,162,0.6801,0.6367,0.0434
+regression,chronic_365,183,0.6636,0.7002,0.0366
+regression,chronic_180,225,0.7229,0.7155,0.0074
+regression,aq_le90,170,0.542,0.6045,0.0625
+classification,has_dwi,214,0.7002,0.7575,0.0573
+classification,has_rsfmri,192,0.7444,0.7494,0.005
+classification,has_taskfmri,189,0.6805,0.7071,0.0266
+classification,has_flair,135,0.6263,0.6631,0.0368
+classification,multimodal_complete,162,0.6835,0.6925,0.009
+classification,chronic_365,183,0.7097,0.7427,0.033
+classification,chronic_180,225,0.7798,0.7522,0.0276
+classification,aq_le90,170,0.7062,0.6625,0.0437

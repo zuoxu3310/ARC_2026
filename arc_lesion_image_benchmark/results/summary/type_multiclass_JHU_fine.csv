@@ -1,0 +1,8 @@
+task,dataset,model,balanced_acc,macro_f1,accuracy,macro_auc,smote_skips,seconds
+multiclass,JHU_fine,XGBoost,0.336±0.016,0.337±0.019,0.599±0.018,0.749±0.019,0,177.2
+multiclass,JHU_fine,RandomForest,0.333±0.009,0.332±0.011,0.598±0.015,0.821±0.007,0,19.8
+multiclass,JHU_fine,LightGBM,0.328±0.015,0.327±0.016,0.593±0.020,0.719±0.021,0,304.5
+multiclass,JHU_fine,MLP,0.307±0.010,0.308±0.011,0.542±0.013,0.654±0.021,0,685.4
+multiclass,JHU_fine,SVM_rbf,0.306±0.006,0.309±0.008,0.549±0.011,0.680±0.017,0,1.1
+multiclass,JHU_fine,LogReg,0.296±0.013,0.297±0.011,0.516±0.014,0.706±0.014,0,1.1
+multiclass,JHU_fine,Dummy,0.167±0.000,0.102±0.000,0.438±0.000,0.500±0.000,0,0.0

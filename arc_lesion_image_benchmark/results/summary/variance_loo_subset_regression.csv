@@ -1,0 +1,9 @@
+dropped_subset,eta2_subset,eta2_model,subset_gt_model
+chronic_180,0.1224,0.7786,False
+chronic_365,0.1287,0.7735,False
+full,0.1188,0.7839,False
+has_dwi,0.1204,0.7834,False
+has_flair,0.036,0.8634,False
+has_rsfmri,0.1362,0.77,False
+has_taskfmri,0.1243,0.7808,False
+multimodal_complete,0.1304,0.7699,False

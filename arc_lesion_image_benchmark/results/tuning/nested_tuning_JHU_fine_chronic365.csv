@@ -1,0 +1,2 @@
+dataset,model,default_r,default_r_CI,default_mae,default_mae_CI,default_rmse,default_rmse_CI,default_r2,default_r2_CI,default_seconds,tuned_r,tuned_r_CI,tuned_mae,tuned_mae_CI,tuned_rmse,tuned_rmse_CI,tuned_r2,tuned_r2_CI,tuned_seconds,tuned_minus_default_r
+JHU_fine_chronic365,RandomForest,0.6775,"[0.587, 0.753]",16.32,"[14.644, 18.129]",20.375,"[18.336, 22.505]",0.4571,"[0.325, 0.563]",11.9,0.6989,"[0.618, 0.766]",15.877,"[14.244, 17.665]",19.779,"[17.900, 21.804]",0.4884,"[0.374, 0.579]",103.9,0.0214

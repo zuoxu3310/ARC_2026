@@ -1,0 +1,7 @@
+dataset,target,n_estimators,balanced_acc,auc,f1_severe,seconds
+arterial_coarse,severe,2,0.660±0.016,0.793,0.525,58.6
+arterial_coarse,severe,3,0.688±0.021,0.798,0.569,95.3
+arterial_coarse,severe,4,0.681±0.022,0.801,0.559,133.1
+arterial_coarse,severe,5,0.686±0.016,0.801,0.567,160.6
+arterial_coarse,severe,6,0.684±0.019,0.803,0.563,196.7
+arterial_coarse,severe,8,0.684±0.015,0.804,0.564,275.6

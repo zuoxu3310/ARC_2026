@@ -1,0 +1,7 @@
+model,floor_default_r,floor_tuned_r,floor_best_r,pct_of_ceiling_RFdefault_0.704,pct_of_ceiling_RFtuned_0.7152
+Ridge,0.6545,0.6545,0.6545,93.0,91.5
+SVR_rbf,0.6781,0.6734,0.6781,96.3,94.8
+RandomForest,0.5648,0.616,0.616,87.5,86.1
+MLP,0.6673,,0.6673,94.8,93.3
+TabPFN,0.685,,0.685,97.3,95.8
+BEST_FLOOR (TabPFN),,,0.685,97.3,95.8

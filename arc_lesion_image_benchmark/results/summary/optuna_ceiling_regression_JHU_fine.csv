@@ -1,0 +1,2 @@
+dataset,n_trials,heldout_pooled_r,heldout_pooled_r_ci95,heldout_fold_mean_r,mae,rmse,r2,model_type_dist
+JHU_fine,50,0.6904,"[0.617, 0.757]",0.7084,16.055,20.313,0.4745,"LightGBM:7, RandomForest:33, SVR_rbf:1, XGBoost:9"

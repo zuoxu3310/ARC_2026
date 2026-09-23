@@ -1,0 +1,5 @@
+comparison,n_paired,metric,value_A,value_B,label_A,label_B,diff_A_minus_B,ci_low,ci_high,p_bootstrap,steiger_z,p_steiger,boot_n_valid
+fine_vs_coarse__RandomForest_default,226,pearson_r,0.7196,0.6952,JHU_fine,arterial_coarse,0.0244,0.003,0.0471,0.032,2.2695,0.0242,2000
+fine_vs_coarse__RandomForest_default,226,mae,15.416,15.9136,JHU_fine,arterial_coarse,-0.4976,-1.0902,0.0779,0.097,,,2000
+tuned_vs_default__RandomForest_JHU_fine,226,pearson_r,0.7224,0.7196,tuned,default,0.0028,-0.0042,0.0106,0.472,0.8157,0.4155,2000
+tuned_vs_default__RandomForest_JHU_fine,226,mae,15.4066,15.416,tuned,default,-0.0094,-0.2129,0.1844,0.932,,,2000

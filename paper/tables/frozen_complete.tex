@@ -1,0 +1,35 @@
+\begin{table*}[!t]
+\caption{Complete fixed-prediction scores and selected-minus-full differences. Brackets give conditional 95\% patient-bootstrap intervals for the difference. Classification scores and differences are expressed as proportions here; Fig.~\ref{fig:frozen} uses percentage points for differences.}
+\label{tab:frozen-complete}
+\centering\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Scoring set} & \textbf{RF score} & \textbf{RF difference [95\% interval]} & \textbf{XGB score} & \textbf{XGB difference [95\% interval]} \\
+\midrule
+\multicolumn{5}{l}{\emph{Regression: Pearson $r$}} \\
+Full pool & 0.712 & -- & 0.694 & -- \\
+Diffusion MRI & 0.716 & $+0.004\ [-0.003,+0.011]$ & 0.698 & $+0.004\ [-0.003,+0.011]$ \\
+Resting-state fMRI & 0.724 & $+0.011\ [-0.019,+0.048]$ & 0.707 & $+0.013\ [-0.017,+0.048]$ \\
+Task fMRI & 0.675 & $-0.038\ [-0.081,+0.010]$ & 0.659 & $-0.035\ [-0.077,+0.013]$ \\
+FLAIR & 0.625 & $-0.087\ [-0.158,-0.020]$ & 0.614 & $-0.080\ [-0.154,-0.014]$ \\
+Multimodal complete & 0.691 & $-0.021\ [-0.075,+0.041]$ & 0.672 & $-0.022\ [-0.079,+0.040]$ \\
+$\ge365$ days & 0.712 & $+0.000\ [-0.036,+0.041]$ & 0.700 & $+0.006\ [-0.030,+0.048]$ \\
+$\ge180$ days & 0.711 & $-0.001\ [-0.003,+0.000]$ & 0.693 & $-0.001\ [-0.003,+0.000]$ \\
+AQ $\le90$ (secondary) & 0.555 & $-0.157\ [-0.226,-0.104]$ & 0.530 & $-0.164\ [-0.233,-0.110]$ \\
+Published-list intersection (secondary) & 0.756 & $+0.044\ [+0.007,+0.084]$ & 0.742 & $+0.048\ [+0.011,+0.088]$ \\
+\midrule
+\multicolumn{5}{l}{\emph{Classification: balanced accuracy}} \\
+Full pool & 0.755 & -- & 0.737 & -- \\
+Diffusion MRI & 0.759 & $+0.004\ [-0.003,+0.013]$ & 0.740 & $+0.003\ [-0.007,+0.016]$ \\
+Resting-state fMRI & 0.762 & $+0.006\ [-0.018,+0.032]$ & 0.750 & $+0.013\ [-0.011,+0.041]$ \\
+Task fMRI & 0.739 & $-0.016\ [-0.041,+0.007]$ & 0.710 & $-0.027\ [-0.051,-0.003]$ \\
+FLAIR & 0.711 & $-0.044\ [-0.089,-0.002]$ & 0.667 & $-0.070\ [-0.115,-0.028]$ \\
+Multimodal complete & 0.747 & $-0.008\ [-0.044,+0.031]$ & 0.734 & $-0.003\ [-0.038,+0.035]$ \\
+$\ge365$ days & 0.746 & $-0.009\ [-0.034,+0.019]$ & 0.741 & $+0.004\ [-0.021,+0.034]$ \\
+$\ge180$ days & 0.755 & $-0.001\ [-0.002,+0.000]$ & 0.736 & $-0.001\ [-0.002,+0.000]$ \\
+AQ $\le90$ (secondary) & 0.711 & $-0.044\ [-0.062,-0.029]$ & 0.692 & $-0.045\ [-0.063,-0.029]$ \\
+Published-list intersection (secondary) & 0.766 & $+0.010\ [-0.021,+0.044]$ & 0.757 & $+0.020\ [-0.011,+0.054]$ \\
+\bottomrule
+\end{tabular}
+\end{table*}

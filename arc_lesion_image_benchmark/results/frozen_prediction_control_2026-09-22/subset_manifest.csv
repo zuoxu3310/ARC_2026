@@ -1,0 +1,11 @@
+subset,category,n,n_severe,severe_prior,target_sd,target_min,target_max,criterion,source_study
+full,baseline,226,72,0.3186,28.083,5.0,100.0,all modelable patients,(baseline)
+has_dwi,availability,214,69,0.3224,28.286,5.0,100.0,dwi==1 (requires diffusion MRI),GenBrain
+has_rsfmri,availability,192,57,0.2969,27.378,5.0,100.0,"rest_fmri==1 (rsfMRI is a REWIRED prerequisite; their curated N=129 NOT reproducible, no public list)",REWIRED
+has_taskfmri,availability,189,56,0.2963,25.723,11.46,100.0,task_fmri==1 (requires task fMRI / naming task),task-fMRI studies
+has_flair,availability,135,42,0.3111,25.647,14.5,100.0,flair==1 (requires FLAIR),FLAIR lesion studies
+multimodal_complete,availability,162,46,0.284,25.008,11.46,100.0,dwi==1 & rest_fmri==1 & task_fmri==1 (multimodal-complete),multimodal studies (e.g. REWIRED-style)
+chronic_365,clinical_threshold,183,58,0.3169,27.73,5.4,100.0,wab_days>=365 (chronic >= 1 year),chronic-stage studies
+chronic_180,clinical_threshold,225,72,0.32,28.076,5.0,100.0,wab_days>=180 (chronic >= 6 months),chronic-stage studies
+aq_le90,target_defined,170,72,0.4235,24.433,5.0,89.6,wab_aq<=90 (drop near-ceiling cases),Challa-433
+teghipco_idlist,exact_persons,172,54,0.314,28.542,5.0,100.0,"exact published participant_id list (same persons, NOT same result/pipeline)",Teghipco

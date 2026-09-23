@@ -1,0 +1,5 @@
+dropped_model,eta2_subset,eta2_model,subset_gt_model
+LightGBM,0.7355,0.0199,True
+RandomForest,0.5812,0.112,True
+TabPFN,0.5995,0.1176,True
+XGBoost,0.6331,0.1343,True

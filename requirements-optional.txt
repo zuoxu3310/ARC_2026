@@ -1,0 +1,5 @@
+# Needed only for TabPFN grid cells and the earlier Optuna/SHAP analyses.
+-r requirements.txt
+tabpfn==6.3.2
+optuna==3.6.2
+shap==0.46.0
