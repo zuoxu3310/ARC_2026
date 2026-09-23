@@ -21,7 +21,7 @@ def main():
     grid.add_argument("--tabpfn", action="store_true", help="include TabPFN in separate processes (full paper grid)")
     commands.add_parser("fixed", help="train RF/XGBoost on the full pool, then rescore and resample")
     commands.add_parser("statistics", help="variance decomposition and model-set sensitivity")
-    commands.add_parser("figures", help="generate four figures and the fixed-prediction tables")
+    commands.add_parser("figures", help="generate four figures, fixed-prediction tables, and full-grid benchmark tables")
     args = parser.parse_args()
     if args.stage == "prepare":
         run(ROOT / "scripts/prepare_data.py", *(["--extra-atlases"] if args.extra_atlases else []))
@@ -47,6 +47,11 @@ def main():
     else:
         run(SRC / "fig_manuscript_rewrite_20260922.py")
         run(ROOT / "scripts/build_manuscript_tables.py")
+        if all((SRC.parent / f"results/runs/grid_{task}_TabPFN.csv").exists()
+               for task in ["regression", "classification"]):
+            run(ROOT / "scripts/build_benchmark_tables.py")
+        else:
+            print("Full-model benchmark tables require 'grid --tabpfn'; other figures/tables were generated.")
 
 
 if __name__ == "__main__":
