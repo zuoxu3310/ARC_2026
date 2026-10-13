@@ -2,17 +2,21 @@
 """
 s3_classification_benchmark.py
 
-把 WAB-AQ 回归任务镜像成 Teghipco 式二分类: severe = WAB-AQ <= 50 vs 其余。
-对同一批特征表(动脉粗 / JHU 细)跑同一套分类器, 看"分类口径下细特征有没有用",
-并与 Teghipco CNN(F1≈0.70, precision≈0.59) 做参考对比(非同协议, 仅锚点)。
+Mirrors the WAB-AQ regression task as a Teghipco-style binary classification:
+severe = WAB-AQ <= 50 vs the rest. The same classifiers are run on the same feature
+tables (coarse arterial / fine JHU) to test whether fine-grained features help under
+the classification framing, with the Teghipco CNN (F1 ~0.70, precision ~0.59) as a
+reference anchor only (different protocol).
 
-防泄露 + 不平衡处理(遵循 CLAUDE.md): 每折内 StandardScaler -> SMOTE -> 分类器,
-imblearn Pipeline 保证 scaler/SMOTE 只见训练折。
-协议: 分层重复 K 折(默认 5x10), 每个 repeat 汇总折外预测算指标, 再跨 repeat 取均值±标准差。
-主指标: balanced accuracy(CLAUDE.md); 另报 AUC / F1(severe) / MCC / severe 精确率召回率。
+Leakage guard + class imbalance: within each fold StandardScaler -> SMOTE -> classifier,
+wrapped in an imblearn Pipeline so the scaler and SMOTE are fit on the training fold only.
+Protocol: repeated stratified K-fold (default 5x10); out-of-fold predictions are pooled
+per repeat to compute metrics, then mean +/- SD is taken across repeats.
+Primary metric: balanced accuracy; also reports AUC / F1(severe) / MCC / severe-class
+precision and recall.
 
-运行:
-  PYENV_VERSION=data-analysis python src/s3_classification_benchmark.py \
+Run:
+  python src/s3_classification_benchmark.py \
       --table data/jhu156_features_merged.tsv --name JHU_fine [--models RandomForest XGBoost ...]
 """
 from __future__ import annotations
@@ -68,7 +72,7 @@ def estimator(name):
 
 
 def build_pipe(name):
-    # Dummy 不需要 scaler/SMOTE; 其余折内 scaler -> SMOTE -> clf
+    # Dummy needs no scaler/SMOTE; all others use in-fold scaler -> SMOTE -> clf
     if name == "Dummy":
         return ImbPipeline([("clf", estimator(name))])
     return ImbPipeline([("scaler", StandardScaler()),
@@ -101,7 +105,7 @@ def metrics_for(y_true, y_pred, y_prob):
 def run_model(name, X, y):
     rskf = RepeatedStratifiedKFold(n_splits=N_SPLITS, n_repeats=N_REPEATS, random_state=SEED)
     per_repeat = {k: [] for k in ["balanced_acc", "auc", "f1_severe", "mcc", "prec_severe", "rec_severe"]}
-    # 按 repeat 聚合折外预测
+    # Pool out-of-fold predictions per repeat
     oof_pred = np.full(len(y), -1); oof_prob = np.zeros(len(y))
     for i, (tr, te) in enumerate(rskf.split(X, y)):
         pipe = build_pipe(name)
@@ -111,9 +115,9 @@ def run_model(name, X, y):
             oof_prob[te] = pipe.predict_proba(X[te])[:, 1]
         except Exception:
             oof_prob[te] = oof_pred[te]
-        if (i + 1) % 5 == 0:          # 可见进度: 每 5 折打印一次
+        if (i + 1) % 5 == 0:          # progress: print every 5 folds
             print(f"    [{name}] fold {i+1}/{N_SPLITS*N_REPEATS}", flush=True)
-        if (i + 1) % N_SPLITS == 0:   # 一个 repeat 跑满
+        if (i + 1) % N_SPLITS == 0:   # one full repeat completed
             m = metrics_for(y, oof_pred, oof_prob)
             for k in per_repeat:
                 per_repeat[k].append(m[k])
@@ -124,13 +128,13 @@ def run_model(name, X, y):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--table", required=True)
-    ap.add_argument("--name", required=True, help="数据集标签, 如 JHU_fine / arterial_coarse")
+    ap.add_argument("--name", required=True, help="dataset label, e.g. JHU_fine / arterial_coarse")
     ap.add_argument("--models", nargs="*", default=ALL_MODELS)
     args = ap.parse_args()
 
     X, y, feat = load_xy(PKG / args.table if not Path(args.table).is_absolute() else args.table)
     n_sev = int(y.sum())
-    print(f"[{args.name}] n={len(y)}  severe(<=≤{THRESHOLD})={n_sev} ({n_sev/len(y):.0%})  "
+    print(f"[{args.name}] n={len(y)}  severe(<={THRESHOLD})={n_sev} ({n_sev/len(y):.0%})  "
           f"features={X.shape[1]}")
 
     rows = []
@@ -147,7 +151,7 @@ def main():
 
     new = pd.DataFrame(rows).drop(columns=["balanced_acc_sort"])
     summ = PKG / "results" / "summary" / f"classification_{args.name}.csv"
-    if summ.exists():                       # 合并而非覆盖: 删掉本轮重跑的模型行再拼
+    if summ.exists():                       # merge, not overwrite: drop rows for re-run models, then append
         old = pd.read_csv(summ)
         old = old[~old["model"].isin(new["model"])]
         new = pd.concat([old, new], ignore_index=True)

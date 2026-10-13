@@ -3,18 +3,25 @@
 """
 s19_variance_decomp.py
 ======================
-任务3 第 3 步(主统计量): 把 s18 全交叉网格的 (subset×model×seed) 分数做方差分解,
-回答"子集贡献的方差 vs 模型贡献的方差 vs 划分种子的方差谁大"。
+Variance decomposition (primary statistic) of the (subset x model x seed) scores
+from the s18 fully crossed grid: is more score variance attributable to the data
+subset, to the model, or to the CV split seed?
 
-替换被评审否掉的 max-min 摆幅。方法(refine-logs/TASK3_DESIGN_PREREG_2026-06-13.md §3):
-  - ANOVA η²: score ~ C(subset)+C(model)+C(seed), 各因子占总方差百分比(headline 直观数)。
-  - 混合模型方差成分 σ²_subset/σ²_model/σ²_seed(交叉随机效应, statsmodels vc_formula)。
-  - 折内自助 CI(每单元内重采样 seed, B 次) -> η²_subset / η²_model / 及其差的 CI。
-  - 留一子集/留一模型敏感性: 掉任一 level 后 η²_subset>η²_model 是否仍成立(答"加/减 level 会翻"那刀)。
-  - 回归侧 Pearson r 先 Fisher-z 变换再分析(r 有界、方差依赖均值)。
-  - 分两套: (A)全子集; (B)主集=可得性+临床阈值子集(去掉 aq_le90 靶定义 + teghipco 精确同人)。
+Used instead of a simple max-min range of scores. Methods (design fixed before running):
+  - ANOVA eta^2: score ~ C(subset) + C(model) + C(seed); share of total variance per
+    factor (headline, easy-to-read number).
+  - Mixed-model variance components sigma^2_subset / sigma^2_model / sigma^2_seed
+    (crossed random effects, statsmodels vc_formula).
+  - Within-cell bootstrap CI (resample seeds within each cell, B times) -> CIs for
+    eta^2_subset, eta^2_model and their difference.
+  - Leave-one-subset-out / leave-one-model-out sensitivity: does
+    eta^2_subset > eta^2_model still hold after dropping any single level?
+  - Regression: Pearson r is Fisher-z transformed before analysis (r is bounded and
+    its variance depends on its mean).
+  - Two scopes: (A) all subsets; (B) primary set = availability + clinical-threshold
+    subsets (excluding the target-defined aq_le90 subset and the exact Teghipco cohort).
 
-用法: PYENV_VERSION=data-analysis python src/s19_variance_decomp.py --task regression
+Usage: python src/s19_variance_decomp.py --task regression
 """
 from __future__ import annotations
 import argparse
@@ -41,9 +48,9 @@ def load_grid(task):
         if os.path.exists(p):
             frames.append(pd.read_csv(p))
     if not frames:
-        raise FileNotFoundError(f"没有 grid_{task}_*.csv, 先跑 s18")
+        raise FileNotFoundError(f"no grid_{task}_*.csv found; run s18 first")
     df = pd.concat(frames, ignore_index=True)
-    # 回归: Fisher-z 变换 score(=r)
+    # Regression: Fisher-z transform of score (= r)
     if task == "regression":
         r = df["score"].clip(-0.999, 0.999)
         df["score_z"] = np.arctanh(r)
@@ -54,7 +61,7 @@ def load_grid(task):
 
 
 def eta_sq(df, factors=("subset", "model", "seed")):
-    """ANOVA η²: 各因子 SS / 总 SS。返回 dict。"""
+    """ANOVA eta^2: SS of each factor / total SS. Returns a dict."""
     terms = " + ".join(f"C({f})" for f in factors)
     model = smf.ols(f"analysis_y ~ {terms}", data=df).fit()
     aov = sm.stats.anova_lm(model, typ=2)
@@ -69,7 +76,7 @@ def eta_sq(df, factors=("subset", "model", "seed")):
 
 
 def var_components(df):
-    """交叉随机效应方差成分(statsmodels vc_formula, 单 dummy group)。"""
+    """Crossed random-effects variance components (statsmodels vc_formula, single dummy group)."""
     d = df.copy()
     d["grp"] = 1
     vc = {"subset": "0 + C(subset)", "model": "0 + C(model)", "seed": "0 + C(seed)"}
@@ -89,7 +96,8 @@ def var_components(df):
 
 
 def boot_eta_diff(df, factors=("subset", "model", "seed"), B=BOOT, seed=SEED):
-    """折内自助: 每 (subset,model) 单元内重采样 seed 行, 重算 η², 得 η²_subset-η²_model 的 CI。"""
+    """Within-cell bootstrap: resample seed rows within each (subset, model) cell, recompute
+    eta^2, and return a CI for eta^2_subset - eta^2_model."""
     rng = np.random.default_rng(seed)
     cells = list(df.groupby(["subset", "model"]).groups.items())
     diffs, es_sub, es_mod = [], [], []
@@ -115,7 +123,8 @@ def boot_eta_diff(df, factors=("subset", "model", "seed"), B=BOOT, seed=SEED):
 
 
 def leave_one_out(df, kind):
-    """留一 level 敏感性: 逐个掉一个 subset 或 model, 看 η²_subset>η²_model 是否仍成立。"""
+    """Leave-one-level-out sensitivity: drop one subset or model at a time and check whether
+    eta^2_subset > eta^2_model still holds."""
     levels = sorted(df[kind].unique())
     res = []
     for lv in levels:
@@ -144,7 +153,7 @@ def run_one(df, task, scope):
     loo_m = leave_one_out(df, "model")
     surv_s = bool(loo_s["subset_gt_model"].all())
     surv_m = bool(loo_m["subset_gt_model"].all())
-    print(f"  留一子集后 subset>model 全成立? {surv_s}; 留一模型后? {surv_m}", flush=True)
+    print(f"  subset>model holds after every leave-one-subset-out? {surv_s}; after every leave-one-model-out? {surv_m}", flush=True)
     row = {"task": task, "scope": scope, **{k: round(v, 4) for k, v in e.items()},
            **{k: (round(v, 5) if isinstance(v, float) else v) for k, v in vc.items()},
            "eta2_subset_minus_model_ci_lo": round(bo["eta2_subset_minus_model_ci"][0], 4),
@@ -162,13 +171,15 @@ def main():
     args = ap.parse_args()
     df = load_grid(args.task)
 
-    # scope A: 全子集
+    # scope A: all subsets
     rowA, _, _ = run_one(df, args.task, "all_subsets")
-    # scope B: 主集 = 可得性 + 临床阈值(去 target_defined + exact_persons)
+    # scope B: primary set = availability + clinical threshold (excludes target_defined + exact_persons)
     primary = df[df["category"].isin(["baseline", "availability", "clinical_threshold"])]
     rowB, loo_s, loo_m = run_one(primary, args.task, "primary_avail_clinical")
-    # scope C(headline): 主集 × 仅"各家真会拿来报结果"的强模型 —— 排除弱基线(Ridge/MLP/SVR)
-    #   弱模型把模型轴方差撑大是混淆; 各论文报的是其最佳竞争力模型, 它们彼此挤在一起。
+    # scope C (headline): primary set x only the strong models that studies actually report;
+    #   weak baselines (Ridge/MLP/SVR) are excluded. Weak models inflate model-axis variance
+    #   (a confound); published studies report their best competitive model, and those
+    #   models score close to each other.
     COMP = {"regression": ["RandomForest", "XGBoost", "LightGBM"],
             "classification": ["RandomForest", "XGBoost", "LightGBM", "LogReg"]}[args.task]
     comp_df = primary[primary["model"].isin(COMP)]
@@ -181,7 +192,7 @@ def main():
     loo_m.to_csv(os.path.join(SUMM, f"variance_loo_model_{args.task}.csv"), index=False)
     loo_sC.to_csv(os.path.join(SUMM, f"variance_loo_subset_competitive_{args.task}.csv"), index=False)
     loo_mC.to_csv(os.path.join(SUMM, f"variance_loo_model_competitive_{args.task}.csv"), index=False)
-    print(f"\n[write] variance_decomposition_{args.task}.csv (3 scopes: all / primary / competitive) + loo 表", flush=True)
+    print(f"\n[write] variance_decomposition_{args.task}.csv (3 scopes: all / primary / competitive) + LOO tables", flush=True)
 
 
 if __name__ == "__main__":

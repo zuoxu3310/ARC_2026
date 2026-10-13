@@ -1,17 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-s14_type_report.py — 类型基准的混淆矩阵 / 逐类报告 / 二分校准(复用 dump, 不重训)。
+s14_type_report.py - confusion matrices, per-class reports and binary calibration for
+the aphasia-type benchmark (reuses existing dumps, no retraining).
 
-两部分:
-A) 多分类(6 类)诚实报告: 读 s11 dump type_multiclass_{gran}_{model}_oof.csv,
-   出混淆矩阵 + 逐类 precision/recall/F1/support。重点: 少数类(Wernicke/TCM)support 极小,
-   逐类指标本就不可靠 —— 用 support 列把这点摆明, 不让读者误读 macro 分。
-B) 二分校准(fluent / broca, RandomForest): 读 s12 dump clf_type_{task}_{gran}_RF_default_patient_probs.csv,
-   在原始患病率上算 Brier/ECE/MCE + 可靠性曲线; 并报 CV 无泄露重校准(Platt / isotonic)可修复性。
-   (SMOTE 把训练折平衡到 50/50 -> 折外概率系统偏移, 与 s7 同源问题。)
+Two parts:
+A) Multiclass (6-class) report: reads the s11 dump type_multiclass_{gran}_{model}_oof.csv
+   and writes the confusion matrix plus per-class precision/recall/F1/support. Minority
+   classes (Wernicke/TCM) have very small support, so their per-class metrics are
+   inherently unreliable; the support column makes this explicit so macro scores are
+   not over-read.
+B) Binary calibration (fluent / broca, RandomForest): reads the s12 dump
+   clf_type_{task}_{gran}_RF_default_patient_probs.csv, computes Brier/ECE/MCE and
+   reliability curves at the original prevalence, and reports whether leakage-free CV
+   recalibration (Platt / isotonic) fixes it.
+   (SMOTE balances training folds to 50/50 -> out-of-fold probabilities are
+   systematically shifted; same issue as in s7.)
 
-写:
+Writes:
   results/summary/type_multiclass_confusion_{gran}_{model}.csv
   results/summary/type_multiclass_perclass_{gran}_{model}.csv
   results/summary/type_calibration.csv
@@ -36,11 +42,11 @@ MC_MODELS = ["RandomForest", "LogReg"]
 BIN_TASKS = ["fluent", "broca"]
 
 
-# ---------------- A) 多分类 ----------------
+# ---------------- A) multiclass ----------------
 def multiclass_report(gran, model):
     f = os.path.join(RUNS, f"type_multiclass_{gran}_{model}_oof.csv")
     if not os.path.exists(f):
-        print(f"  [skip] 缺 {os.path.basename(f)}"); return
+        print(f"  [skip] missing {os.path.basename(f)}"); return
     d = pd.read_csv(f)
     classes = [c[len("prob_"):] for c in d.columns if c.startswith("prob_")]
     y_true = d["y_true"].to_numpy(); y_pred = d["y_pred"].to_numpy()
@@ -55,14 +61,14 @@ def multiclass_report(gran, model):
                        "f1": f1.round(3), "support": sup})
     pc = pc.sort_values("support", ascending=False).reset_index(drop=True)
     pc.to_csv(os.path.join(SUMMARY, f"type_multiclass_perclass_{gran}_{model}.csv"), index=False)
-    print(f"  [{gran}/{model}] 6类 混淆矩阵 + 逐类 -> 写出。逐类(按 support):")
+    print(f"  [{gran}/{model}] 6-class confusion matrix + per-class report written. Per class (by support):")
     print(pc.to_string(index=False))
     small = pc[pc["support"] < 15]["class"].tolist()
     if small:
-        print(f"    !! support<15 的类(指标不可靠): {small}")
+        print(f"    !! classes with support<15 (metrics unreliable): {small}")
 
 
-# ---------------- B) 二分校准(同 s7) ----------------
+# ---------------- B) binary calibration (as in s7) ----------------
 def brier(y, p): return float(np.mean((p - y) ** 2))
 
 
@@ -110,7 +116,7 @@ def cv_recalibrate(y, p, method, folds=CALIB_FOLDS, seed=SEED):
 def calibration_for(task, gran, summary_rows, rel_rows):
     f = os.path.join(RUNS, f"clf_type_{task}_{gran}_RandomForest_default_patient_probs.csv")
     if not os.path.exists(f):
-        print(f"  [skip] 缺 {os.path.basename(f)}"); return
+        print(f"  [skip] missing {os.path.basename(f)}"); return
     d = pd.read_csv(f)
     y = d["y_true"].to_numpy(float); p_raw = d["y_prob_mean"].to_numpy(float)
     prev = float(y.mean()); brier_const = brier(y, np.full_like(y, prev))
@@ -128,12 +134,12 @@ def calibration_for(task, gran, summary_rows, rel_rows):
 
 
 def main():
-    print("=== A) 多分类(6 类)混淆矩阵 + 逐类报告 ===")
+    print("=== A) Multiclass (6-class) confusion matrix + per-class report ===")
     for gran in GRANS:
         for model in MC_MODELS:
             multiclass_report(gran, model)
 
-    print("\n=== B) 二分校准(RandomForest, 原始患病率上) ===")
+    print("\n=== B) Binary calibration (RandomForest, at original prevalence) ===")
     srows, rrows = [], []
     for task in BIN_TASKS:
         for gran in GRANS:

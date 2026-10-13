@@ -3,16 +3,20 @@
 """
 s17_freeze_pool_subsets.py
 ==========================
-任务3 第 1 步(预注册数字来源): 冻结 226 建模池, 机械算出每个"纳入标准定义子集"
-的确切 participant_id 名单 + N + severe 先验 + target SD, 写 data/subsets/。
+Step 1 of the inclusion-criterion subset analysis: freeze the 226-patient modelling pool and
+mechanically compute, for each "inclusion-criterion subset", the exact participant_id list + N +
+severe prior + target SD; write them to data/subsets/.
 
-机械选择规则(非手挑): 子集 = 在 226 公开池上可忠实重建的、出现在被调研 ARC 论文里
-的纳入标准全集。可重建性由列决定。每个子集映射到某研究成文标准或自然可得性标准。
+Mechanical selection rule (no hand-picking): the subsets are all inclusion criteria from the
+surveyed ARC papers that can be faithfully rebuilt on the 226-patient public pool. Whether a
+criterion can be rebuilt is decided by the available columns. Each subset maps to a published
+study criterion or to a natural data-availability criterion.
 
-设计依据: refine-logs/TASK3_DESIGN_PREREG_2026-06-13.md
-红线: 子集按"标准"命名, 不按研究名; 研究名只当出处。不冒充重现谁的队列。
+The subset definitions were fixed before any modelling.
+Naming rule: subsets are named after the criterion, not after a study; study names are given
+only as the source. No subset claims to reproduce any study's cohort.
 
-用法: PYENV_VERSION=data-analysis python src/s17_freeze_pool_subsets.py
+Usage: python src/s17_freeze_pool_subsets.py
 """
 from __future__ import annotations
 import os
@@ -25,11 +29,11 @@ DS = os.path.join(ROOT, "datasets", "arc_ds004884")
 OUT_DIR = os.path.join(PKG, "data", "subsets")
 SEVERE_THR = 50.0      # severe = wab_aq <= 50
 CEILING_THR = 90.0     # Challa-433: drop wab_aq > 90
-CHRONIC_DAYS = 365     # 慢性 >= 1 年
+CHRONIC_DAYS = 365     # chronic >= 1 year
 
 
 def load_pool():
-    """冻结池 = jhu156 特征表(226) = 有特征∩有掩码∩有 WAB-AQ。合并临床/模态。"""
+    """Frozen pool = jhu156 feature table (226) = has features and mask and WAB-AQ. Merges clinical/modality columns."""
     jhu = pd.read_csv(os.path.join(PKG, "data", "jhu156_features_merged.tsv"), sep="\t")
     modal = pd.read_csv(os.path.join(PKG, "data", "arc_modality_availability.tsv"), sep="\t")
     part = pd.read_csv(os.path.join(DS, "participants.tsv"), sep="\t")
@@ -38,7 +42,7 @@ def load_pool():
                       on="participant_id", how="left")
     pool = pool.merge(part[["participant_id", "wab_days", "wab_type", "sex"]],
                       on="participant_id", how="left")
-    # 左/右病灶负荷(供诊断, 不做子集——S5 已砍)
+    # left/right lesion load (diagnostic only; no laterality subset is built from it)
     lcols = [c for c in jhu.columns if c.endswith("_L")]
     rcols = [c for c in jhu.columns if c.endswith("_R")]
     pool["_left_load"] = jhu[lcols].sum(axis=1).values
@@ -48,12 +52,12 @@ def load_pool():
 
 def teghipco_ids():
     p = os.path.join(PKG, "results", "summary", "teghipco_label_crosscheck.csv")
-    t = pd.read_csv(p)  # 逗号分隔
+    t = pd.read_csv(p)  # comma-separated
     return set(t["participant_id"].astype(str))
 
 
 def subset_defs(pool):
-    """返回 [(name, category, criterion_text, source_study, mask_or_idset)]。
+    """Return [(name, category, criterion_text, source_study, mask_or_idset)].
     category: baseline | availability | clinical_threshold | target_defined | exact_persons
     """
     tids = teghipco_ids()
@@ -61,7 +65,7 @@ def subset_defs(pool):
     defs = [
         ("full", "baseline", "all modelable patients", "(baseline)",
          pd.Series(True, index=pool.index)),
-        # 可得性定义(主 headline 用)
+        # availability criteria (used in the main headline analysis)
         ("has_dwi", "availability", "dwi==1 (requires diffusion MRI)", "GenBrain",
          pool["dwi"] == 1),
         ("has_rsfmri", "availability", "rest_fmri==1 (rsfMRI is a REWIRED prerequisite; their curated N=129 NOT reproducible, no public list)", "REWIRED",
@@ -72,15 +76,15 @@ def subset_defs(pool):
          pool["flair"] == 1),
         ("multimodal_complete", "availability", "dwi==1 & rest_fmri==1 & task_fmri==1 (multimodal-complete)", "multimodal studies (e.g. REWIRED-style)",
          (pool["dwi"] == 1) & (pool["rest_fmri"] == 1) & (pool["task_fmri"] == 1)),
-        # 临床阈值(主 headline 用)
+        # clinical thresholds (used in the main headline analysis)
         ("chronic_365", "clinical_threshold", "wab_days>=365 (chronic >= 1 year)", "chronic-stage studies",
          pool["wab_days"] >= 365),
         ("chronic_180", "clinical_threshold", "wab_days>=180 (chronic >= 6 months)", "chronic-stage studies",
          pool["wab_days"] >= 180),
-        # 靶定义(单列, 量程截断单独处理)
+        # target-defined (kept separate: it truncates the target range)
         ("aq_le90", "target_defined", "wab_aq<=90 (drop near-ceiling cases)", "Challa-433",
          aq <= CEILING_THR),
-        # 精确同人(锚点, 不进主随机效应)
+        # exact same persons (anchor; excluded from the main random-effects analysis)
         ("teghipco_idlist", "exact_persons", "exact published participant_id list (same persons, NOT same result/pipeline)", "Teghipco",
          pool["participant_id"].astype(str).isin(tids)),
     ]
@@ -91,22 +95,22 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     pool, part = load_pool()
     n_pool = len(pool)
-    print(f"[pool] 冻结建模池 N={n_pool}  (uniq id={pool['participant_id'].nunique()})")
+    print(f"[pool] frozen modelling pool N={n_pool}  (uniq id={pool['participant_id'].nunique()})")
 
-    # 245 vs 226 缺口对账(评审要求显式)
+    # explicit reconciliation of the 245 vs 226 gap
     feat_ids = set(pool["participant_id"].astype(str))
     all_ids = set(part["participant_id"].astype(str))
     dropped = sorted(all_ids - feat_ids)
-    print(f"[reconcile] participants.tsv={len(all_ids)} 临床行, 池={len(feat_ids)}, "
-          f"无特征/掩码丢弃={len(dropped)} 人")
+    print(f"[reconcile] participants.tsv={len(all_ids)} clinical rows, pool={len(feat_ids)}, "
+          f"dropped (no features/mask)={len(dropped)} patients")
     with open(os.path.join(OUT_DIR, "_dropped_no_feature.txt"), "w") as f:
         f.write("\n".join(dropped) + "\n")
 
-    # modality/wab_days 合并缺失检查
+    # check for missing modality/wab_days after the merge
     miss_mod = pool["dwi"].isna().sum()
     miss_days = pool["wab_days"].isna().sum()
-    print(f"[merge] 缺 modality={miss_mod}, 缺 wab_days={miss_days}")
-    assert miss_mod == 0 and miss_days == 0, "合并有缺失, 子集定义会错, 先修"
+    print(f"[merge] missing modality={miss_mod}, missing wab_days={miss_days}")
+    assert miss_mod == 0 and miss_days == 0, "missing values after merge would corrupt the subset definitions; fix first"
 
     rows = []
     for name, cat, crit, src, mask in subset_defs(pool):
@@ -118,7 +122,7 @@ def main():
         tgt_sd = float(sub["wab_aq"].std(ddof=1))
         tgt_min = float(sub["wab_aq"].min())
         tgt_max = float(sub["wab_aq"].max())
-        # 写 ID 名单
+        # write the ID list
         with open(os.path.join(OUT_DIR, f"{name}_ids.txt"), "w") as f:
             f.write("\n".join(ids) + "\n")
         rows.append({
@@ -133,9 +137,9 @@ def main():
     man = pd.DataFrame(rows)
     man_path = os.path.join(OUT_DIR, "subset_manifest.csv")
     man.to_csv(man_path, index=False)
-    print(f"\n[write] {man_path}  ({len(man)} 子集)")
+    print(f"\n[write] {man_path}  ({len(man)} subsets)")
 
-    # 子集间重叠(Jaccard)——非独立 level 要披露
+    # overlap between subsets (Jaccard): the subsets are not independent, which is disclosed
     names = [r["subset"] for r in rows if r["subset"] not in ("full",)]
     idsets = {}
     for nm in names:
@@ -148,14 +152,14 @@ def main():
             union = len(idsets[a] | idsets[b])
             jac.loc[a, b] = round(inter / union, 3) if union else np.nan
     jac.to_csv(os.path.join(OUT_DIR, "subset_jaccard.csv"))
-    print(f"[write] subset_jaccard.csv (子集重叠, 披露非独立性)")
+    print(f"[write] subset_jaccard.csv (subset overlap; documents non-independence)")
 
-    # 左右脑负荷诊断(S5 死因留证)
+    # left/right lesion-load diagnostic (why no laterality subset is used)
     lr = pool[["_left_load", "_right_load"]]
     n_left_gt = int((pool["_left_load"] > pool["_right_load"]).sum())
-    print(f"\n[S5-dead] sum(_L)>sum(_R) 命中 {n_left_gt}/{n_pool} 人; "
+    print(f"\n[laterality] sum(_L)>sum(_R) holds for {n_left_gt}/{n_pool} patients; "
           f"mean L={lr['_left_load'].mean():.3f} R={lr['_right_load'].mean():.4f} "
-          f"-> 左脑代理=整池, 无区分度, 已砍; '库无侧别标签'写进 limitations")
+          f"-> left-hemisphere proxy covers the whole pool; not discriminative, dropped; the dataset has no laterality label")
 
 
 if __name__ == "__main__":

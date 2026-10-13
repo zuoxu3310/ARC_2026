@@ -1,40 +1,48 @@
 #!/usr/bin/env python
 """
-s9_chronicity_sensitivity.py  ——  慢性期敏感性分析(RF 回归 + 分类)
+s9_chronicity_sensitivity.py -- chronicity sensitivity analysis (RF regression + classification)
 
-背景
-----
-ARC 官方自定义为 "chronic stroke repository"(慢性卒中库),慢性口径以他们为准。
-但 participants.tsv 的 wab_days(卒中到 WAB 评估天数)在建模队列里有部分偏短
-(最早 42 天)。本脚本检验:若强制只留更慢性的子集,顶端分数是否仍稳。
+Background
+----------
+ARC describes itself as a "chronic stroke repository", and we follow that definition of
+chronic. However, wab_days in participants.tsv (days from stroke to WAB assessment) is
+fairly short for some participants in the modelling cohort (minimum 42 days). This script
+checks whether the headline scores hold when only a more chronic subset is kept.
 
-做什么
-------
-把特征表(JHU 细 / arterial 粗) join participants.tsv 的 wab_days,生成两个子集:
+What it does
+------------
+Joins each feature table (JHU fine / arterial coarse) with wab_days from participants.tsv
+and builds two subsets:
   * wab_days >= 180
   * wab_days >= 365
-每个子集上,用与主线【完全相同的口径】重跑 RandomForest:
-  * 回归: 复用 s5_nested_tuning_regression 的 run_default / run_tuned(5x10 重复分层,
-          折内 StandardScaler->RF, tuned 走内层 GridSearchCV)。指标 Pearson r / MAE / RMSE / R2。
-  * 分类: 复用 s3b_classification_nested_dump 的 run_outer(5x10 重复分层,
-          折内 StandardScaler->SMOTE->RF)。指标 balanced-acc / AUC / F1 / MCC。
-全队列(无 wab_days 过滤)同样跑一遍作锚,直接和子集对比。
+On each subset RandomForest is re-run with exactly the same protocol as the main analysis:
+  * Regression: reuses run_default / run_tuned from s5_nested_tuning_regression (5x10
+          repeated stratified CV, in-fold StandardScaler->RF, tuned uses an inner
+          GridSearchCV). Metrics: Pearson r / MAE / RMSE / R2.
+  * Classification: reuses run_outer from s3b_classification_nested_dump (5x10 repeated
+          stratified CV, in-fold StandardScaler->SMOTE->RF). Metrics: balanced-acc / AUC /
+          F1 / MCC.
+The full cohort (no wab_days filter) is run the same way as an anchor for direct comparison.
 
-防泄露(逐条)
-------------
-1) wab_days 过滤是【进 CV 之前的纯行选择】: 只按 "wab_days >= 阈值" 留人,不碰 target、
-   不用任何特征/标签统计量,不是数据依赖的变换 -> 不引入泄露。
-2) 过滤后的子集整套交给原脚本的 fold 逻辑: scaler/SMOTE 仍只在折内训练子折 fit_transform,
-   外层测试折只 transform/predict。与主线口径一字不差(直接 import 复用,不复制逻辑)。
-3) wab_days 仅用于选行,绝不进特征矩阵 X(过滤后立刻丢弃该列)。
+Leakage guards
+--------------
+1) The wab_days filter is a pure row selection applied before CV: participants are kept
+   only by "wab_days >= threshold". It does not touch the target, uses no feature/label
+   statistic and is not a data-dependent transform -> no leakage.
+2) The filtered subset goes through the original fold logic unchanged: scaler/SMOTE are
+   still fit_transform on the inner training folds only, and the outer test fold is only
+   transformed/predicted. The protocol is identical to the main analysis (functions are
+   imported and reused, not copied).
+3) wab_days is used only for row selection and never enters the feature matrix X (the
+   column is dropped right after filtering).
 
-用法
-----
-  # SMOKE(只 RF,极小网格,少 repeats,验证跑通):
-  PYENV_VERSION=data-analysis python src/s9_chronicity_sensitivity.py --smoke
+Usage
+-----
+  # SMOKE (RF only, tiny grid, few repeats, checks that it runs end to end):
+  python src/s9_chronicity_sensitivity.py --smoke
 
-  # 全量(default + tuned,JHU + arterial,>=180 + >=365 + 全队列锚):
-  PYENV_VERSION=data-analysis python src/s9_chronicity_sensitivity.py
+  # Full run (default + tuned, JHU + arterial, >=180 + >=365 + full-cohort anchor):
+  python src/s9_chronicity_sensitivity.py
 """
 from __future__ import annotations
 import argparse
@@ -47,11 +55,11 @@ import numpy as np
 import pandas as pd
 
 PKG = Path(__file__).resolve().parents[1]
-ROOT = PKG.parent  # literature_ieee_access_arc/
+ROOT = PKG.parent  # repository root
 SRC = PKG / "src"
 sys.path.insert(0, str(SRC))
 
-# 直接复用主线脚本的核心函数(同一份 fold/防泄露逻辑,不复制)
+# Reuse the core functions of the main scripts directly (same fold/leakage logic, not copied)
 import s5_nested_tuning_regression as reg   # noqa: E402
 import s3b_classification_nested_dump as clf  # noqa: E402
 
@@ -60,23 +68,24 @@ TABLES = {
     "JHU_fine": PKG / "data" / "jhu156_features_merged.tsv",
     "arterial_coarse": PKG / "data" / "ArterialAtlas156_features_merged.tsv",
 }
-THRESHOLDS = [None, 180, 365]   # None = 全队列锚
+THRESHOLDS = [None, 180, 365]   # None = full-cohort anchor
 SEED = reg.SEED
 
 
 def load_wab_days():
-    """participant_id -> wab_days(数值)。"""
+    """participant_id -> wab_days (numeric)."""
     pt = pd.read_csv(PARTICIPANTS, sep="\t")
     wd = pd.to_numeric(pt["wab_days"], errors="coerce")
     return pd.Series(wd.values, index=pt["participant_id"].values, name="wab_days")
 
 
 def filtered_ids(table_path, wab_days, min_days):
-    """返回该表上、target 非 NA、wab_days>=min_days 的 participant_id 列表(保持表内顺序)。
-    min_days=None 表示不过滤(全队列)。过滤只用 wab_days 这一列,不碰特征/标签。"""
+    """Return the participant_ids in this table with a non-NA target and wab_days >= min_days
+    (table order preserved). min_days=None means no filtering (full cohort). The filter uses
+    only the wab_days column and never touches features or labels."""
     df = pd.read_csv(table_path, sep="\t")
     ids = df["participant_id"]
-    keep_target = df["wab_aq"].notna().values   # 与主线一致: 先去掉无标签的人
+    keep_target = df["wab_aq"].notna().values   # as in the main analysis: drop unlabelled participants first
     if min_days is None:
         mask = keep_target
     else:
@@ -85,11 +94,11 @@ def filtered_ids(table_path, wab_days, min_days):
     return ids[mask].tolist()
 
 
-# ---------------- 回归(s5 口径) ----------------
+# ---------------- Regression (s5 protocol) ----------------
 def run_regression(name, table_path, keep_ids, do_tuned, n_repeats, smoke):
-    """复用 s5 的 load_xy / run_default / run_tuned / metrics_with_ci,
-    在过滤后的子集上跑 RandomForest。X/y 由 reg.load_xy 加载后按 keep_ids 取子集。"""
-    X, y, feat = reg.load_xy(str(table_path))   # 与主线同清洗(drop NA target->fillna0->丢稀疏列)
+    """Reuse load_xy / run_default / run_tuned / metrics_with_ci from s5 and run
+    RandomForest on the filtered subset. X/y are loaded by reg.load_xy, then subset by keep_ids."""
+    X, y, feat = reg.load_xy(str(table_path))   # same cleaning as main analysis (drop NA target -> fillna 0 -> drop sparse columns)
     keep = [i for i in keep_ids if i in X.index]
     Xs = X.loc[keep]
     ys = y.loc[keep]
@@ -116,11 +125,11 @@ def run_regression(name, table_path, keep_ids, do_tuned, n_repeats, smoke):
     return len(Xs), Xs.shape[1], out
 
 
-# ---------------- 分类(s3b 口径) ----------------
+# ---------------- Classification (s3b protocol) ----------------
 def run_classification(name, table_path, keep_ids, do_tuned, smoke):
-    """复用 s3b 的 load_xy / run_outer / bootstrap_ci,
-    在过滤后的子集上跑 RandomForest(折内 SMOTE)。"""
-    X, y, wab, pids, feat = clf.load_xy(str(table_path))  # numpy + pids 列表
+    """Reuse load_xy / run_outer / bootstrap_ci from s3b and run RandomForest
+    (in-fold SMOTE) on the filtered subset."""
+    X, y, wab, pids, feat = clf.load_xy(str(table_path))  # numpy arrays + list of pids
     pid_idx = {p: k for k, p in enumerate(pids)}
     sel = [pid_idx[i] for i in keep_ids if i in pid_idx]
     sel = np.asarray(sorted(sel))
@@ -144,10 +153,10 @@ def run_classification(name, table_path, keep_ids, do_tuned, smoke):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="慢性期敏感性: RF 回归+分类,wab_days 子集")
+    ap = argparse.ArgumentParser(description="Chronicity sensitivity: RF regression + classification on wab_days subsets")
     ap.add_argument("--smoke", action="store_true",
-                    help="冒烟: 极小网格 + 少 repeats(分类仍 5x10,小网格)")
-    ap.add_argument("--no-tuned", action="store_true", help="只跑 default")
+                    help="Smoke test: tiny grid + few repeats (classification still 5x10, small grid)")
+    ap.add_argument("--no-tuned", action="store_true", help="Run the default configuration only")
     args = ap.parse_args()
 
     do_tuned = not args.no_tuned
@@ -161,10 +170,10 @@ def main():
             keep = filtered_ids(table, wab_days, thr)
             print(f"\n=== {gran} | {subset} | n={len(keep)} ===", flush=True)
 
-            # 回归
+            # Regression
             n_reg, nfeat_reg, reg_out = run_regression(
                 gran, table, keep, do_tuned, n_repeats_reg, args.smoke)
-            # 分类
+            # Classification
             n_clf, n_sev, nfeat_clf, clf_out = run_classification(
                 gran, table, keep, do_tuned, args.smoke)
 
@@ -179,7 +188,7 @@ def main():
                     "severe_prevalence": round(n_sev / n_clf, 4),
                     "n_features": nfeat_clf,
                 }
-                # 回归
+                # Regression
                 if cfg in reg_out:
                     m, ci, sec = reg_out[cfg]
                     row.update({
@@ -190,7 +199,7 @@ def main():
                         "reg_r2": round(m["r2"], 4),
                         "reg_seconds": round(sec, 1),
                     })
-                # 分类
+                # Classification
                 if cfg in clf_out:
                     summ, ci, sec = clf_out[cfg]
                     row.update({
@@ -211,7 +220,7 @@ def main():
     out_path = out_dir / f"chronicity_sensitivity{suffix}.csv"
     df.to_csv(out_path, index=False)
     print(f"\nsummary -> {out_path}", flush=True)
-    # 简明对比打印
+    # Short comparison printout
     cols = ["granularity", "subset", "n", "n_severe", "config",
             "reg_pearson_r", "clf_balanced_acc"]
     print(df[[c for c in cols if c in df.columns]].to_string(index=False), flush=True)

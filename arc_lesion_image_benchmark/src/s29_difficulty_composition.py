@@ -3,23 +3,29 @@
 """
 s29_difficulty_composition.py
 =============================
-机制拆解(其二): 病人级"难易构成"分析。
-回答 Master ZX 的问: 某些纳入标准是不是正好挑到了"本来就容易区分/很少犯错"的病人?
+Mechanism analysis (part 2): patient-level difficulty composition.
+Question: do some inclusion criteria happen to select patients who are inherently easy to
+classify (i.e. rarely misclassified)?
 
-反循环论证(硬约束): "难易"只用病人自带属性定义, 绝不用基准模型答对没来定义。
-  - boundary_dist = |WAB-AQ - 50|      离 severe 二分界的距离 (纯标签派生)
-  - knn_disagree  = 全池标准化特征上, 每人 10 个最近邻里异标签(severe/非severe)的比例
-                    (model-free 局部类重叠, 不用基准模型)
-模型的逐人对错(全池 OOF)只在第 2 步当【验证目标】: 证明上面这套难易确实能预测谁被错判;
-绝不进入难易的定义。
+Avoiding circularity (hard constraint): difficulty is defined only from the patients' own
+attributes, never from whether a baseline model got them right.
+  - boundary_dist = |WAB-AQ - 50|      distance from the severe cut-off (label-derived only)
+  - knn_disagree  = on standardized full-pool features, the fraction of each patient's 10
+                    nearest neighbours with the opposite label (severe / non-severe)
+                    (model-free local class overlap, no baseline model involved)
+Per-patient model correctness (full-pool OOF) is used only in step 2 as a validation target,
+to show that these difficulty scores do predict who gets misclassified; it never enters the
+definition of difficulty.
 
-三步:
-  1. 在全 226 池上给每人算两个 model-free 难易分。
-  2. 验证: 难易分 -> 全池 RF 的逐人误判/绝对误差 (分箱命中率 + AUC + 相关), 证难易管用。
-  3. 构成: 每个纳入标准子集挑到的病人, 平均难易 vs 全池; 再把子集分数对子集平均难易相关,
-     看"分高的子集是不是系统性挑到更容易的人"。
+Three steps:
+  1. Compute two model-free difficulty scores for every patient in the full 226 pool.
+  2. Validation: difficulty score -> per-patient misclassification / absolute error of the
+     full-pool RF (binned error rate + AUC + correlation), showing the scores are informative.
+  3. Composition: mean difficulty of the patients selected by each inclusion-criterion subset
+     vs the full pool; then correlate subset scores with subset mean difficulty to see whether
+     higher-scoring subsets systematically select easier patients.
 
-用法: PYENV_VERSION=data-analysis python src/s29_difficulty_composition.py
+Usage: python src/s29_difficulty_composition.py
 """
 from __future__ import annotations
 import os
@@ -43,10 +49,11 @@ KNN = 10
 
 
 def knn_disagreement(Xstd, ylab, k=KNN):
-    """每人 k 近邻里异标签比例(留一)。model-free 局部类重叠。"""
+    """Fraction of opposite-label neighbours among each patient's k nearest neighbours
+    (leave-self-out). Model-free local class overlap."""
     nn = NearestNeighbors(n_neighbors=k + 1).fit(Xstd)
     _, idx = nn.kneighbors(Xstd)
-    nb = idx[:, 1:]                        # 去掉自身
+    nb = idx[:, 1:]                        # drop the patient itself
     return (ylab[nb] != ylab[:, None]).mean(axis=1)
 
 
@@ -66,13 +73,13 @@ def main():
     ylab = (aq <= SEVERE_THR).astype(int)
     Xstd = StandardScaler().fit_transform(X.values)
 
-    # ---- 1. model-free 难易 ----
+    # ---- 1. model-free difficulty ----
     boundary_dist = np.abs(aq - SEVERE_THR)
     knn_dis = knn_disagreement(Xstd, ylab)
     pat = pd.DataFrame({"participant_id": ids, "wab_aq": aq, "severe": ylab,
                         "boundary_dist": boundary_dist, "knn_disagree": knn_dis})
 
-    # ---- 2. 验证: 难易 -> 全池 RF 逐人对错 ----
+    # ---- 2. Validation: difficulty -> per-patient correctness of the full-pool RF ----
     clf = pd.read_csv(os.path.join(RUNS, "clf_JHU_fine_RandomForest_default_patient_probs.csv"))
     clf["misclass"] = (clf["y_pred"] != clf["y_true"]).astype(int)
     clf["margin"] = (clf["y_prob_mean"] - 0.5).abs()
@@ -83,31 +90,32 @@ def main():
     pat.to_csv(os.path.join(SUMM, "patient_difficulty.csv"), index=False)
 
     mis = pat["misclass"].values.astype(float)
-    print("===== 验证: model-free 难易能否预测【分类误判】 =====", flush=True)
-    # 离界距离: 近 = 难; 用 -boundary_dist 当"难度分"
+    print("===== Validation: does model-free difficulty predict classification errors? =====", flush=True)
+    # Boundary distance: closer = harder; use -boundary_dist as the difficulty score
     auc_bd = roc_auc_score(mis, -pat["boundary_dist"].values)
     auc_kd = roc_auc_score(mis, pat["knn_disagree"].values)
     auc_both = roc_auc_score(mis, (-pat["boundary_dist"].rank() + pat["knn_disagree"].rank()).values)
-    print(f"  AUC(离界距离->误判)   = {auc_bd:.3f}", flush=True)
-    print(f"  AUC(近邻异标签->误判) = {auc_kd:.3f}", flush=True)
-    print(f"  AUC(两者秩和->误判)   = {auc_both:.3f}", flush=True)
-    print("  按离界距离分箱的误判率:", flush=True)
+    print(f"  AUC(boundary dist -> misclass)   = {auc_bd:.3f}", flush=True)
+    print(f"  AUC(kNN disagreement -> misclass) = {auc_kd:.3f}", flush=True)
+    print(f"  AUC(rank sum of both -> misclass) = {auc_both:.3f}", flush=True)
+    print("  Misclassification rate by boundary-distance bin:", flush=True)
     for lab, n, rate in binned_rate(pat["boundary_dist"].values, mis,
                                     [-0.1, 15, 30, 60], ["<=15", "15-30", ">30"]):
-        print(f"    |AQ-50| {lab:6s}  n={n:3d}  误判率={rate:.3f}", flush=True)
-    print("  按近邻异标签率分箱(三分位)的误判率:", flush=True)
+        print(f"    |AQ-50| {lab:6s}  n={n:3d}  misclass rate={rate:.3f}", flush=True)
+    print("  Misclassification rate by kNN-disagreement bin (tertiles):", flush=True)
     q = pat["knn_disagree"].quantile([1/3, 2/3]).values
     for lab, n, rate in binned_rate(pat["knn_disagree"].values, mis,
-                                    [-0.001, q[0], q[1], 1.001], ["低", "中", "高"]):
-        print(f"    近邻异标签 {lab:3s}  n={n:3d}  误判率={rate:.3f}", flush=True)
+                                    [-0.001, q[0], q[1], 1.001], ["low", "mid", "high"]):
+        print(f"    kNN disagreement {lab:3s}  n={n:3d}  misclass rate={rate:.3f}", flush=True)
 
-    # 回归误差 vs 难易(回归分数是 r, 更受量程影响; 这里只报相关当佐证)
+    # Regression error vs difficulty (the regression score is r, which depends more on the
+    # AQ range; correlations are reported here only as supporting evidence)
     ae = pat["abs_err"].values
-    print("\n  回归绝对误差相关(佐证): "
-          f"corr(误差, 越接近高分端)={np.corrcoef(ae, aq)[0,1]:+.3f}  "
-          f"corr(误差, 近邻异标签)={np.corrcoef(ae, knn_dis)[0,1]:+.3f}", flush=True)
+    print("\n  Regression absolute-error correlations (supporting): "
+          f"corr(abs err, AQ; higher = nearer top end)={np.corrcoef(ae, aq)[0,1]:+.3f}  "
+          f"corr(abs err, kNN disagreement)={np.corrcoef(ae, knn_dis)[0,1]:+.3f}", flush=True)
 
-    # ---- 3. 子集难易构成 + 与分数相关 ----
+    # ---- 3. Subset difficulty composition + correlation with score ----
     pat_idx = pat.set_index("participant_id")
     comp_rows = []
     for task, mn_csv, score_col in [
@@ -129,18 +137,18 @@ def main():
     comp = pd.DataFrame(comp_rows)
     comp.to_csv(os.path.join(SUMM, "subset_difficulty_composition.csv"), index=False)
 
-    print("\n===== 子集难易构成 vs 分数(分高=是否挑到更容易的人) =====", flush=True)
+    print("\n===== Subset difficulty composition vs score (do higher scores come from easier patients?) =====", flush=True)
     full_bd = float(pat["boundary_dist"].mean())
     full_kd = float(pat["knn_disagree"].mean())
-    print(f"  全池基准: 平均离界距离={full_bd:.2f}  平均近邻异标签={full_kd:.3f}", flush=True)
+    print(f"  Full-pool baseline: mean boundary dist={full_bd:.2f}  mean kNN disagreement={full_kd:.3f}", flush=True)
     for task in ["classification", "regression"]:
         t = comp[comp["task"] == task]
-        # 排除精确同人锚点(teghipco)看纳入标准本身
+        # Exclude the exact same-patient anchor (teghipco) to look at the inclusion criteria themselves
         tc = t[t["subset"] != "teghipco_idlist"]
         r_bd = float(np.corrcoef(tc["score"], tc["mean_boundary_dist"])[0, 1])
         r_kd = float(np.corrcoef(tc["score"], tc["mean_knn_disagree"])[0, 1])
-        print(f"  [{task}] 子集分数 vs 平均离界距离 r={r_bd:+.3f}; "
-              f"vs 平均近邻异标签 r={r_kd:+.3f}  (n={len(tc)} 子集, 去 teghipco 锚)", flush=True)
+        print(f"  [{task}] subset score vs mean boundary dist r={r_bd:+.3f}; "
+              f"vs mean kNN disagreement r={r_kd:+.3f}  (n={len(tc)} subsets, teghipco anchor excluded)", flush=True)
     print(f"\n[write] patient_difficulty.csv / subset_difficulty_composition.csv", flush=True)
 
 

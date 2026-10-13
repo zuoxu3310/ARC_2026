@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-nature_style.py —— shared figure style for every paper figure.
+nature_style.py - shared figure style for every paper figure.
 
-House style = **figures4papers** (Chen Liu, ChenLiu-1996/figures4papers,
-`scientific-figure-making/` skill). The look:
+House style = **figures4papers** (Chen Liu, github.com/ChenLiu-1996/figures4papers).
+The look:
   - open axes: top/right spines OFF;
   - frameless legend; minimal / no grid (value labels carry the numbers);
   - bold sans (Helvetica/Arial), editable SVG/PDF text;
@@ -13,8 +13,8 @@ House style = **figures4papers** (Chen Liu, ChenLiu-1996/figures4papers,
 
 What stays from IEEE Access: the **physical figure size** only. Canvases use the
 IEEE column widths (COL_SINGLE / COL_DOUBLE) and finalize() exports at that exact
-size WITHOUT bbox_inches="tight", so check_figure_sizes.py keeps passing. Only
-the *visual style* switched to figures4papers (per Master ZX, 2026-06-13).
+size WITHOUT bbox_inches="tight", so exported figures keep the column width.
+Only the *visual style* follows figures4papers.
 
 The filename is kept (every fig_*.py imports `nature_style`); the module now
 implements the figures4papers conventions instead of the earlier IEEE-plain look.
@@ -25,7 +25,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# ---- PALETTE: full figures4papers semantic palette (api.md / design-theory) ----
+# ---- PALETTE: full figures4papers semantic palette ----
 # blue = key/proposed; green = improvements; red/pink = baselines/contrasts;
 # neutral = background. Existing keys (blue_main/secondary, red_strong, teal,
 # neutral_*, band) are preserved so all fig_*.py keep working.
@@ -53,7 +53,7 @@ PALETTE = {
     "box_fill": "#F6F7F9",         # near-white neutral box fill (pipeline)
 }
 
-# Ordered default colors when a script does not pass its own (api.md DEFAULT_COLORS).
+# Ordered default colors when a script does not pass its own.
 DEFAULT_COLORS = [PALETTE["blue_main"], PALETTE["green_3"], PALETTE["red_strong"],
                   PALETTE["teal"], PALETTE["violet"], PALETTE["neutral_light"]]
 
@@ -151,7 +151,7 @@ def finalize(fig, out_base, dpi=600, formats=("svg", "pdf", "png"), tight=True):
     """Export at the figure's physical size. out_base has no extension.
 
     Do not use bbox_inches="tight": it changes the saved PDF's physical
-    dimensions, which breaks IEEE column-width sizing (check_figure_sizes.py).
+    dimensions, which breaks IEEE column-width sizing.
     """
     os.makedirs(os.path.dirname(out_base), exist_ok=True)
     if tight:

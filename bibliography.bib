@@ -1,5 +1,16 @@
-% The 32 references cited in the manuscript; verified 2026-09-23.
+% =====================================================================
+% refs.bib — bibliography for the ARC lesion-image severity benchmark (IEEE Access)
+% The 32 entries cited by main.tex were rechecked against Zotero and primary
+% bibliographic sources on 2026-09-23. The 20 uncited historical entries are
+% retained for provenance. See outputs/bibliography-audit-2026-09-23/.
+%
+% Cite-key policy: keys were unified across sec_intro/sec_methods/sec_results
+% (teghipco2024deep and hollmann2025tabpfn are the single canonical keys).
+% =====================================================================
 
+% --- ARC dataset descriptor (primary anchor) ----------------------------
+% VERIFIED REAL. Scientific Data 2024; DOI 10.1038/s41597-024-03819-7;
+% PMID 39251640. (research/03_paper_notes reverification; matches the pinned anchor.)
 @article{gibson2024arc,
   title       = {The {Aphasia} {Recovery} {Cohort}, an open-source chronic stroke repository},
   author      = {Gibson, Makayla and Newman-Norlund, Roger and Bonilha, Leonardo and Fridriksson, Julius and Hickok, Gregory and Hillis, Argye E. and den Ouden, Dirk-Bart and Rorden, Christopher},
@@ -14,18 +25,10 @@
   url         = {https://doi.org/10.1038/s41597-024-03819-7}
 }
 
-@article{tilwani2025benchmarking,
-  title       = {Benchmarking machine learning models in lesion-symptom mapping for predicting language outcomes in stroke survivors},
-  author      = {Tilwani, Deepa and O'Reilly, Christian and Riccardi, Nicholas and Shalin, Valerie L. and den Ouden, Dirk-Bart and Fridriksson, Julius and Shinkareva, Svetlana V. and Sheth, Amit P. and Desai, Rutvik H.},
-  journal     = {Frontiers in Neuroimaging},
-  volume      = {4},
-  year        = {2025},
-  doi         = {10.3389/fnimg.2025.1573816},
-  eid         = {1573816},
-  shortjournal= {Front. Neuroimaging},
-  url         = {https://doi.org/10.3389/fnimg.2025.1573816}
-}
-
+% --- Teghipco 3D-CNN deep severity classification (same-data comparison) ---
+% VERIFIED REAL. Communications Medicine 2024; DOI 10.1038/s43856-024-00541-8;
+% PMID 38866977; PMC11169346. N=231. (Web-verified 2026-06-04.)
+% Public 173-subject input subset on figshare: DOI 10.6084/m9.figshare.23579943.
 @article{teghipco2024deep,
   title       = {Distinct brain morphometry patterns revealed by deep learning improve prediction of post-stroke aphasia severity},
   author      = {Teghipco, Alex and Newman-Norlund, Roger and Fridriksson, Julius and Rorden, Christopher and Bonilha, Leonardo},
@@ -40,6 +43,44 @@
   url         = {https://doi.org/10.1038/s43856-024-00541-8}
 }
 
+% --- Tilwani same-data ARC LSM benchmark (most direct same-data competitor) ---
+% VERIFIED REAL. Frontiers in Neuroimaging 2025; DOI 10.3389/fnimg.2025.1573816.
+% Same ARC release (OpenNeuro ds004884 v1.0.1). Curated cohort (left-hemisphere
+% single stroke; AQ N=238). Crossed atlas x modality x model design; atlas main
+% effect not significant (H=1.73, p>0.05); modality strongest factor; lesion-only
+% JHU random forest AQ r=0.73+-0.09. (Zotero export, OpenAlex W4410905407.)
+% Verified 2026-06-13 vs Zotero/Crossref: vol. 4, article 1573816 (2025-05). OK.
+@article{tilwani2025benchmarking,
+  title       = {Benchmarking machine learning models in lesion-symptom mapping for predicting language outcomes in stroke survivors},
+  author      = {Tilwani, Deepa and O'Reilly, Christian and Riccardi, Nicholas and Shalin, Valerie L. and den Ouden, Dirk-Bart and Fridriksson, Julius and Shinkareva, Svetlana V. and Sheth, Amit P. and Desai, Rutvik H.},
+  journal     = {Frontiers in Neuroimaging},
+  volume      = {4},
+  year        = {2025},
+  doi         = {10.3389/fnimg.2025.1573816},
+  eid         = {1573816},
+  shortjournal= {Front. Neuroimaging},
+  url         = {https://doi.org/10.3389/fnimg.2025.1573816}
+}
+
+% --- TabPFN tabular foundation model ------------------------------------
+% VERIFIED REAL. Nature 2025; vol 637, pp 319-326; DOI 10.1038/s41586-024-08328-6;
+% PMC11711098. (Web-verified 2026-06-04.)
+@article{hollmann2025tabpfn,
+  title       = {Accurate predictions on small data with a tabular foundation model},
+  author      = {Hollmann, Noah and M{\"u}ller, Samuel and Purucker, Lennart and Krishnakumar, Arjun and K{\"o}rfer, Max and Hoo, Shi Bin and Schirrmeister, Robin Tibor and Hutter, Frank},
+  journal     = {Nature},
+  volume      = {637},
+  number      = {8045},
+  pages       = {319--326},
+  year        = {2025},
+  doi         = {10.1038/s41586-024-08328-6},
+  publisher   = {Nature Publishing Group},
+  url         = {https://doi.org/10.1038/s41586-024-08328-6}
+}
+
+% --- GenBrain (background competitor; preprint, no journal DOI) ----------
+% VERIFIED REAL preprint. medRxiv 2025; DOI 10.64898/2025.12.19.25342614.
+% (Crossref-verified authors 2026-06-04.) Preprint, not peer-reviewed.
 @article{genbrain2025,
   title       = {{GenBrain}: A generative foundation model of multimodal brain imaging},
   author      = {Yang, Chang and Feng, Jianfeng and Beckmann, Christian F. and Smith, Stephen M. and Gong, Weikang},
@@ -50,6 +91,9 @@
   url         = {https://doi.org/10.64898/2025.12.19.25342614}
 }
 
+% --- REWIRED (background competitor; preprint, no journal DOI) -----------
+% VERIFIED REAL preprint. bioRxiv 2026; DOI 10.64898/2026.05.19.726069.
+% (Crossref-verified authors 2026-06-04.) Preprint, not peer-reviewed.
 @article{rewired2026,
   title       = {Network measures from the {REWIRED} simulation framework enhance prediction of post-stroke aphasia severity},
   author      = {Falconer, Isaac and Varkanitsa, Maria and Kropp, Emerson and Kiran, Swathi},
@@ -60,103 +104,10 @@
   url         = {https://doi.org/10.64898/2026.05.19.726069}
 }
 
-@article{halai2020parameters,
-  title       = {Investigating the effect of changing parameters when building prediction models for post-stroke aphasia},
-  volume      = {4},
-  issn        = {2397-3374},
-  url         = {https://doi.org/10.1038/s41562-020-0854-5},
-  doi         = {10.1038/s41562-020-0854-5},
-  number      = {7},
-  journal     = {Nature Human Behaviour},
-  publisher   = {Springer Science and Business Media LLC},
-  author      = {Halai, Ajay D. and Woollams, Anna M. and Lambon Ralph, Matthew A.},
-  year        = {2020},
-  month       = jul,
-  pages       = {725--735},
-  shortjournal= {Nat. Hum. Behav.}
-}
-
-@article{teghipco2024stable,
-  title       = {Stable multivariate lesion symptom mapping},
-  volume      = {4},
-  issn        = {2957-3963},
-  url         = {https://doi.org/10.52294/001c.117311},
-  doi         = {10.52294/001c.117311},
-  journal     = {Aperture Neuro},
-  publisher   = {Organization for Human Brain Mapping},
-  author      = {Teghipco, Alex and Newman-Norlund, Roger and Gibson, Makayla and Bonilha, Leonardo and Absher, John and Fridriksson, Julius and Rorden, Christopher},
-  year        = {2024},
-  month       = jun
-}
-
-@article{hildesheim2024predicting,
-  title       = {Predicting Language Function Post-Stroke: A Model-Based Structural Connectivity Approach},
-  author      = {Hildesheim, Franziska E. and Ophey, Anja and Zumbansen, Anna and Funck, Thomas and Schuster, Tibor and Jamison, Keith W. and Kuceyeski, Amy and Thiel, Alexander},
-  journal     = {Neurorehabilitation and Neural Repair},
-  volume      = {38},
-  number      = {6},
-  pages       = {447--459},
-  year        = {2024},
-  doi         = {10.1177/15459683241245410},
-  publisher   = {SAGE Publications},
-  shortjournal= {Neurorehabil. Neural Repair},
-  url         = {https://doi.org/10.1177/15459683241245410}
-}
-
-@article{ding2024metric,
-  title       = {Metric comparison of connectome-based lesion-symptom mapping in post-stroke aphasia},
-  author      = {Ding, Junhua and Thye, Melissa and Edmondson-Stait, Amelia J. and Szaflarski, Jerzy P. and Mirman, Daniel},
-  journal     = {Brain Communications},
-  volume      = {6},
-  number      = {5},
-  year        = {2024},
-  doi         = {10.1093/braincomms/fcae313},
-  publisher   = {Oxford University Press},
-  eid         = {fcae313},
-  shortjournal= {Brain Commun.},
-  url         = {https://doi.org/10.1093/braincomms/fcae313}
-}
-
-@article{hu2025multimodal,
-  title       = {Aphasia severity prediction using a multi-modal machine learning approach},
-  author      = {Hu, Xinyi and Varkanitsa, Maria and Kropp, Emerson and Betke, Margrit and Ishwar, Prakash and Kiran, Swathi},
-  journal     = {NeuroImage},
-  volume      = {317},
-  year        = {2025},
-  doi         = {10.1016/j.neuroimage.2025.121300},
-  publisher   = {Elsevier},
-  eid         = {121300},
-  url         = {https://doi.org/10.1016/j.neuroimage.2025.121300}
-}
-
-@inproceedings{chen2024legnet,
-  title       = {A Lesion-Aware Edge-Based Graph Neural Network for Predicting Language Ability in Patients with Post-stroke Aphasia},
-  author      = {Chen, Zijian and Varkanitsa, Maria and Ishwar, Prakash and Konrad, Janusz and Betke, Margrit and Kiran, Swathi and Venkataraman, Archana},
-  booktitle   = {Machine Learning in Clinical Neuroimaging (MLCN 2024)},
-  series      = {Lecture Notes in Computer Science},
-  pages       = {91--101},
-  year        = {2025},
-  doi         = {10.1007/978-3-031-78761-4_9},
-  publisher   = {Springer},
-  url         = {https://doi.org/10.1007/978-3-031-78761-4_9},
-  volume      = {15266},
-  address     = {Cham, Switzerland}
-}
-
-@article{levy2024multivariate,
-  title       = {Multivariate lesion symptom mapping for predicting trajectories of recovery from aphasia},
-  author      = {Levy, Deborah F. and Entrup, Jillian L. and Schneck, Sarah M. and Onuscheck, Caitlin F. and Rahman, Maysaa and Kasdan, Anna and Casilio, Marianne and Willey, Emma and Davis, L. Taylor and de Riesthal, Michael and Kirshner, Howard S. and Wilson, Stephen M.},
-  journal     = {Brain Communications},
-  volume      = {6},
-  number      = {1},
-  year        = {2024},
-  doi         = {10.1093/braincomms/fcae024},
-  publisher   = {Oxford University Press},
-  eid         = {fcae024},
-  shortjournal= {Brain Commun.},
-  url         = {https://doi.org/10.1093/braincomms/fcae024}
-}
-
+% --- Rangus cortical-hierarchy regression (background competitor) -------
+% VERIFIED REAL. Communications Biology 9(1), 2026; DOI 10.1038/s42003-025-09375-z.
+% Author list + vol/issue verified 2026-06-13 vs Zotero/Crossref: 10 authors,
+% NO Hillis (an earlier draft wrongly listed 5 authors incl. Hillis -- fixed).
 @article{rangus2026,
   title       = {Cortical hierarchy and aphasia severity: the sensorimotor--association gradient modulates lesion effects within language-specific networks},
   author      = {Rangus, Ida and Busby, Natalie and Riccardi, Nicholas and Kristinsson, Sigfus and Wilmskoetter, Janina and den Ouden, Dirk B. and Rorden, Chris and Newman-Norlund, Roger and Fridriksson, Julius and Bonilha, Leonardo},
@@ -171,62 +122,9 @@
   url         = {https://doi.org/10.1038/s42003-025-09375-z}
 }
 
-@article{ransohoff1978spectrum,
-  title       = {Problems of Spectrum and Bias in Evaluating the Efficacy of Diagnostic Tests},
-  author      = {Ransohoff, David F. and Feinstein, Alvan R.},
-  journal     = {New England Journal of Medicine},
-  volume      = {299},
-  number      = {17},
-  pages       = {926--930},
-  year        = {1978},
-  doi         = {10.1056/NEJM197810262991705},
-  publisher   = {Massachusetts Medical Society},
-  shortjournal= {New Engl. J. Med.},
-  url         = {https://doi.org/10.1056/NEJM197810262991705}
-}
-
-@article{mulherin2002spectrum,
-  title       = {Spectrum Bias or Spectrum Effect? Subgroup Variation in Diagnostic Test Evaluation},
-  author      = {Mulherin, Stephanie A. and Miller, William C.},
-  journal     = {Annals of Internal Medicine},
-  volume      = {137},
-  number      = {7},
-  pages       = {598--602},
-  year        = {2002},
-  doi         = {10.7326/0003-4819-137-7-200210010-00011},
-  publisher   = {American College of Physicians},
-  shortjournal= {Ann. Intern. Med.},
-  url         = {https://doi.org/10.7326/0003-4819-137-7-200210010-00011}
-}
-
-@article{vergouwe2010casemix,
-  title       = {External Validity of Risk Models: Use of Benchmark Values to Disentangle a Case-Mix Effect From Incorrect Coefficients},
-  author      = {Vergouwe, Yvonne and Moons, Karel G. M. and Steyerberg, Ewout W.},
-  journal     = {American Journal of Epidemiology},
-  volume      = {172},
-  number      = {8},
-  pages       = {971--980},
-  year        = {2010},
-  doi         = {10.1093/aje/kwq223},
-  publisher   = {Oxford University Press},
-  shortjournal= {Amer. J. Epidemiol.},
-  url         = {https://doi.org/10.1093/aje/kwq223}
-}
-
-@article{wiberg2009,
-  title       = {A Comparison of Two Approaches to Correction of Restriction of Range in Correlation Analysis},
-  author      = {Wiberg, Marie and Sundstr{\"o}m, Anna},
-  journal     = {Practical Assessment, Research \& Evaluation},
-  volume      = {14},
-  number      = {5},
-  pages       = {1--9},
-  year        = {2009},
-  issn        = {1531-7714},
-  doi         = {10.7275/AS0K-TM88},
-  url         = {https://doi.org/10.7275/AS0K-TM88},
-  shortjournal= {Pract. Assess. Res. Eval.}
-}
-
+% --- TRIPOD+AI reporting guideline --------------------------------------
+% VERIFIED REAL. BMJ 2024;385:e078378; DOI 10.1136/bmj-2023-078378;
+% PMID 38636956. (Web-verified 2026-06-04.)
 @article{collins2024tripodai,
   title       = {{TRIPOD+AI} statement: updated guidance for reporting clinical prediction models that use regression or machine learning methods},
   author      = {Collins, Gary S and Moons, Karel G M and Dhiman, Paula and Riley, Richard D and Beam, Andrew L and Van Calster, Ben and Ghassemi, Marzyeh and Liu, Xiaoxuan and Reitsma, Johannes B and van Smeden, Maarten and Boulesteix, Anne-Laure and Camaradou, Jennifer Catherine and Celi, Leo Anthony and Denaxas, Spiros and Denniston, Alastair K and Glocker, Ben and Golub, Robert M and Harvey, Hugh and Heinze, Georg and Hoffman, Michael M and Kengne, André Pascal and Lam, Emily and Lee, Naomi and Loder, Elizabeth W and Maier-Hein, Lena and Mateen, Bilal A and McCradden, Melissa D and Oakden-Rayner, Lauren and Ordish, Johan and Parnell, Richard and Rose, Sherri and Singh, Karandeep and Wynants, Laure and Logullo, Patricia},
@@ -238,17 +136,111 @@
   url         = {https://doi.org/10.1136/bmj-2023-078378}
 }
 
-@article{chawla2002smote,
-  title       = {{SMOTE}: Synthetic Minority Over-sampling Technique},
-  author      = {Chawla, N. V. and Bowyer, K. W. and Hall, L. O. and Kegelmeyer, W. P.},
-  journal     = {Journal of Artificial Intelligence Research},
-  volume      = {16},
-  pages       = {321--357},
-  year        = {2002},
-  doi         = {10.1613/jair.953},
-  publisher   = {AI Access Foundation},
-  shortjournal= {J. Artif. Intell. Res.},
-  url         = {https://doi.org/10.1613/jair.953}
+% --- DeLong paired AUC test ---------------------------------------------
+% VERIFIED REAL. Biometrics 1988; vol 44(3), pp 837-845. (Web-verified 2026-06-04.)
+@article{delong1988,
+  title       = {Comparing the areas under two or more correlated receiver operating characteristic curves: a nonparametric approach},
+  author      = {DeLong, Elizabeth R. and DeLong, David M. and Clarke-Pearson, Daniel L.},
+  journal     = {Biometrics},
+  volume      = {44},
+  number      = {3},
+  pages       = {837--845},
+  year        = {1988},
+  doi         = {10.2307/2531595},
+  publisher   = {Wiley},
+  url         = {https://doi.org/10.2307/2531595}
+}
+
+% --- Sun & Xu fast DeLong implementation --------------------------------
+% VERIFIED REAL. IEEE Signal Processing Letters 2014; vol 21(11), pp 1389-1393;
+% DOI 10.1109/LSP.2014.2337313. (Web-verified 2026-06-04.)
+@article{sunxu2014,
+  title   = {Fast implementation of {DeLong}'s algorithm for comparing the areas under correlated receiver operating characteristic curves},
+  author  = {Sun, Xu and Xu, Weichao},
+  journal = {IEEE Signal Processing Letters},
+  volume  = {21},
+  number  = {11},
+  pages   = {1389--1393},
+  year    = {2014},
+  doi     = {10.1109/LSP.2014.2337313},
+  publisher = {IEEE}
+}
+
+% =====================================================================
+% Venue-fit citations — already present in the project's Zotero export
+% (research/07_ieee_access_medai_zotero/zotero_export_..._tag_only.bib); copied here
+% verbatim so refs.bib is self-contained. All three are REAL IEEE Access
+% articles with DOIs.
+% =====================================================================
+
+@article{soheyla_amirian_state---art_2025,
+  title   = {State-of-the-{Art} in {Responsible}, {Explainable}, and {Fair} {AI} for {Medical} {Image} {Analysis}},
+  volume  = {13},
+  url     = {https://doi.org/10.1109/access.2025.3555543},
+  doi     = {10.1109/access.2025.3555543},
+  journal = {IEEE Access},
+  author  = {{Soheyla Amirian} and {Fengyi Gao} and {Nickolas Littlefield} and {Jonathan Hill} and {Adolph J. Yates} and {Johannes F. Plate} and {Liron Pantanowitz} and {Hooman H. Rashidi} and {Ahmad P. Tafti}},
+  year    = {2025},
+  pages   = {58229--58263}
+}
+
+@article{said_a_salloum_predicting_2026,
+  title   = {Predicting {Thyroid} {Dysfunction} {Using} {Classical} {Machine} {Learning} {With} {Rigorous} {Statistical} {Evaluation}},
+  volume  = {14},
+  url     = {https://doi.org/10.1109/access.2026.3666210},
+  doi     = {10.1109/access.2026.3666210},
+  journal = {IEEE Access},
+  author  = {{Said A. Salloum} and {Ammar Almomani} and {Khaled Mohammad Alomari} and {Thair Khdour} and {Mohammad Alauthman}},
+  year    = {2026},
+  pages   = {28852--28866}
+}
+
+@article{tahir_hussain_effresnet-vit_2025,
+  title   = {{EFFResNet}-{ViT}: {A} {Fusion}-{Based} {Convolutional} and {Vision} {Transformer} {Model} for {Explainable} {Medical} {Image} {Classification}},
+  volume  = {13},
+  url     = {https://doi.org/10.1109/access.2025.3554184},
+  doi     = {10.1109/access.2025.3554184},
+  journal = {IEEE Access},
+  author  = {{Tahir Hussain} and {Hayaru Shouno} and {Abid Hussain} and {Dostdar Hussain} and {Muhammad Ismail} and {Tatheer Hussain Mir} and {Fang-Rong Hsu} and {Taukir Alam} and {Shabnur Anonna Akhy}},
+  year    = {2025},
+  pages   = {54040--54068}
+}
+
+
+% ===== Method / atlas / methodology / recent-SOTA citations (added 2026-06-13) =====
+@article{hoerl1970ridge,
+  title   = {Ridge regression: biased estimation for nonorthogonal problems},
+  author  = {Hoerl, Arthur E. and Kennard, Robert W.},
+  journal = {Technometrics},
+  volume  = {12},
+  number  = {1},
+  pages   = {55--67},
+  year    = {1970},
+  doi     = {10.1080/00401706.1970.10488634},
+  publisher = {Taylor \& Francis}
+}
+
+@article{zou2005elasticnet,
+  title   = {Regularization and variable selection via the elastic net},
+  author  = {Zou, Hui and Hastie, Trevor},
+  journal = {Journal of the Royal Statistical Society Series B: Statistical Methodology},
+  volume  = {67},
+  number  = {2},
+  pages   = {301--320},
+  year    = {2005},
+  doi     = {10.1111/j.1467-9868.2005.00503.x},
+  publisher = {Oxford University Press}
+}
+
+@inproceedings{drucker1996svr,
+  title     = {Support Vector Regression Machines},
+  author    = {Drucker, Harris and Burges, Christopher J. C. and Kaufman, Linda and Smola, Alex and Vapnik, Vladimir},
+  booktitle = {Advances in Neural Information Processing Systems},
+  editor    = {Mozer, M. C. and Jordan, M. I. and Petsche, T.},
+  volume    = {9},
+  pages     = {155--161},
+  year      = {1996},
+  publisher = {MIT Press}
 }
 
 @article{breiman2001random,
@@ -287,27 +279,115 @@
   url         = {https://proceedings.neurips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html}
 }
 
-@article{hollmann2025tabpfn,
-  title       = {Accurate predictions on small data with a tabular foundation model},
-  author      = {Hollmann, Noah and M{\"u}ller, Samuel and Purucker, Lennart and Krishnakumar, Arjun and K{\"o}rfer, Max and Hoo, Shi Bin and Schirrmeister, Robin Tibor and Hutter, Frank},
-  journal     = {Nature},
-  volume      = {637},
-  number      = {8045},
-  pages       = {319--326},
-  year        = {2025},
-  doi         = {10.1038/s41586-024-08328-6},
-  publisher   = {Nature Publishing Group},
-  url         = {https://doi.org/10.1038/s41586-024-08328-6}
+@article{cortes1995svm,
+  title   = {Support-vector networks},
+  author  = {Cortes, Corinna and Vapnik, Vladimir},
+  journal = {Machine Learning},
+  volume  = {20},
+  number  = {3},
+  pages   = {273--297},
+  year    = {1995},
+  doi     = {10.1007/BF00994018},
+  publisher = {Springer}
 }
 
-@article{fisher1921,
-  title       = {On the {"Probable Error"} of a Coefficient of Correlation Deduced from a Small Sample},
-  author      = {Fisher, Ronald A.},
-  journal     = {Metron},
-  volume      = {1},
-  pages       = {3--32},
-  year        = {1921},
-  url         = {https://hdl.handle.net/2440/15169}
+@article{friedman2001greedy,
+  title   = {Greedy function approximation: A gradient boosting machine},
+  author  = {Friedman, Jerome H.},
+  journal = {The Annals of Statistics},
+  volume  = {29},
+  number  = {5},
+  pages   = {1189--1232},
+  year    = {2001},
+  doi     = {10.1214/aos/1013203451},
+  publisher = {Institute of Mathematical Statistics}
+}
+
+@article{chawla2002smote,
+  title       = {{SMOTE}: Synthetic Minority Over-sampling Technique},
+  author      = {Chawla, N. V. and Bowyer, K. W. and Hall, L. O. and Kegelmeyer, W. P.},
+  journal     = {Journal of Artificial Intelligence Research},
+  volume      = {16},
+  pages       = {321--357},
+  year        = {2002},
+  doi         = {10.1613/jair.953},
+  publisher   = {AI Access Foundation},
+  shortjournal= {J. Artif. Intell. Res.},
+  url         = {https://doi.org/10.1613/jair.953}
+}
+
+@inproceedings{lundberg2017shap,
+  title     = {A Unified Approach to Interpreting Model Predictions},
+  author    = {Lundberg, Scott M. and Lee, Su-In},
+  booktitle = {Advances in Neural Information Processing Systems 30 (NeurIPS 2017)},
+  editor    = {Guyon, I. and Von Luxburg, U. and Bengio, S. and Wallach, H. and Fergus, R. and Vishwanathan, S. and Garnett, R.},
+  volume    = {30},
+  year      = {2017},
+  publisher = {Curran Associates, Inc.},
+  url       = {https://proceedings.neurips.cc/paper_files/paper/2017/file/8a20a8621978632d76c43dfd28b67767-Paper.pdf}
+}
+
+@article{altmann2010pimp,
+  title   = {Permutation importance: a corrected feature importance measure},
+  author  = {Altmann, Andr{\'e} and Tolo{\c{s}}i, Laura and Sander, Oliver and Lengauer, Thomas},
+  journal = {Bioinformatics},
+  volume  = {26},
+  number  = {10},
+  pages   = {1340--1347},
+  year    = {2010},
+  doi     = {10.1093/bioinformatics/btq134},
+  publisher = {Oxford University Press}
+}
+
+@article{holm1979,
+  title       = {A simple sequentially rejective multiple test procedure},
+  author      = {Holm, Sture},
+  journal     = {Scandinavian Journal of Statistics},
+  volume      = {6},
+  number      = {2},
+  pages       = {65--70},
+  year        = {1979},
+  publisher   = {Wiley},
+  shortjournal= {Scand. J. Statist.},
+  url         = {https://www.jstor.org/stable/4615733}
+}
+
+@article{benjamini1995,
+  title   = {Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing},
+  author  = {Benjamini, Yoav and Hochberg, Yosef},
+  journal = {Journal of the Royal Statistical Society Series B: Statistical Methodology},
+  volume  = {57},
+  number  = {1},
+  pages   = {289--300},
+  year    = {1995},
+  doi     = {10.1111/j.2517-6161.1995.tb02031.x},
+  publisher = {Oxford University Press}
+}
+
+@article{schuirmann1987,
+  title   = {A comparison of the Two One-Sided Tests Procedure and the Power Approach for assessing the equivalence of average bioavailability},
+  author  = {Schuirmann, Donald J.},
+  journal = {Journal of Pharmacokinetics and Biopharmaceutics},
+  volume  = {15},
+  number  = {6},
+  pages   = {657--680},
+  year    = {1987},
+  doi     = {10.1007/BF01068419},
+  publisher = {Springer}
+}
+
+@article{lakens2017,
+  title       = {Equivalence Tests: A Practical Primer for t Tests, Correlations, and Meta-Analyses},
+  author      = {Lakens, Dani{\"e}l},
+  journal     = {Social Psychological and Personality Science},
+  volume      = {8},
+  number      = {4},
+  pages       = {355--362},
+  year        = {2017},
+  doi         = {10.1177/1948550617697177},
+  publisher   = {SAGE Publications},
+  shortjournal= {Social Psychol. Personality Sci.},
+  url         = {https://doi.org/10.1177/1948550617697177}
 }
 
 @article{efron1979,
@@ -324,17 +404,70 @@
   url         = {https://doi.org/10.1214/aos/1176344552}
 }
 
-@article{holm1979,
-  title       = {A simple sequentially rejective multiple test procedure},
-  author      = {Holm, Sture},
-  journal     = {Scandinavian Journal of Statistics},
-  volume      = {6},
-  number      = {2},
-  pages       = {65--70},
-  year        = {1979},
-  publisher   = {Wiley},
-  shortjournal= {Scand. J. Statist.},
-  url         = {https://www.jstor.org/stable/4615733}
+@article{fisher1921,
+  title       = {On the {"Probable Error"} of a Coefficient of Correlation Deduced from a Small Sample},
+  author      = {Fisher, Ronald A.},
+  journal     = {Metron},
+  volume      = {1},
+  pages       = {3--32},
+  year        = {1921},
+  url         = {https://hdl.handle.net/2440/15169}
+}
+
+@article{wiberg2009,
+  title       = {A Comparison of Two Approaches to Correction of Restriction of Range in Correlation Analysis},
+  author      = {Wiberg, Marie and Sundstr{\"o}m, Anna},
+  journal     = {Practical Assessment, Research \& Evaluation},
+  volume      = {14},
+  number      = {5},
+  pages       = {1--9},
+  year        = {2009},
+  issn        = {1531-7714},
+  doi         = {10.7275/AS0K-TM88},
+  url         = {https://doi.org/10.7275/AS0K-TM88},
+  shortjournal= {Pract. Assess. Res. Eval.}
+}
+
+@article{kruskal1952,
+  title   = {Use of Ranks in One-Criterion Variance Analysis},
+  author  = {Kruskal, William H. and Wallis, W. Allen},
+  journal = {Journal of the American Statistical Association},
+  volume  = {47},
+  number  = {260},
+  pages   = {583--621},
+  year    = {1952},
+  doi     = {10.1080/01621459.1952.10483441},
+  publisher = {Taylor and Francis}
+}
+
+@article{Mori_2008,
+  title   = {Stereotaxic white matter atlas based on diffusion tensor imaging in an {ICBM} template},
+  volume  = {40},
+  ISSN    = {1053-8119},
+  url     = {http://dx.doi.org/10.1016/j.neuroimage.2007.12.035},
+  DOI     = {10.1016/j.neuroimage.2007.12.035},
+  number  = {2},
+  journal = {NeuroImage},
+  publisher = {Elsevier BV},
+  author  = {Mori, Susumu and Oishi, Kenichi and Jiang, Hangyi and Jiang, Li and Li, Xin and Akhter, Kazi and Hua, Kegang and Faria, Andreia V. and Mahmood, Asif and Woods, Roger and Toga, Arthur W. and Pike, G. Bruce and Neto, Pedro Rosa and Evans, Alan and Zhang, Jiangyang and Huang, Hao and Miller, Michael I. and van Zijl, Peter and Mazziotta, John},
+  year    = {2008},
+  month   = apr,
+  pages   = {570--582}
+}
+
+@article{Hua_2008,
+  title   = {Tract probability maps in stereotaxic spaces: {Analyses} of white matter anatomy and tract-specific quantification},
+  volume  = {39},
+  ISSN    = {1053-8119},
+  url     = {http://dx.doi.org/10.1016/j.neuroimage.2007.07.053},
+  DOI     = {10.1016/j.neuroimage.2007.07.053},
+  number  = {1},
+  journal = {NeuroImage},
+  publisher = {Elsevier BV},
+  author  = {Hua, Kegang and Zhang, Jiangyang and Wakana, Setsu and Jiang, Hangyi and Li, Xin and Reich, Daniel S. and Calabresi, Peter A. and Pekar, James J. and van Zijl, Peter C.M. and Mori, Susumu},
+  year    = {2008},
+  month   = jan,
+  pages   = {336--347}
 }
 
 @article{Liu_2023,
@@ -399,29 +532,213 @@
   shortjournal= {J. Neurosci. Methods}
 }
 
-@article{delong1988,
-  title       = {Comparing the areas under two or more correlated receiver operating characteristic curves: a nonparametric approach},
-  author      = {DeLong, Elizabeth R. and DeLong, David M. and Clarke-Pearson, Daniel L.},
-  journal     = {Biometrics},
-  volume      = {44},
-  number      = {3},
-  pages       = {837--845},
-  year        = {1988},
-  doi         = {10.2307/2531595},
-  publisher   = {Wiley},
-  url         = {https://doi.org/10.2307/2531595}
+@inproceedings{Grabner_2006,
+  title     = {Symmetric Atlasing and Model Based Segmentation: An Application to the Hippocampus in Older Adults},
+  ISBN      = {9783540447283},
+  ISSN      = {1611-3349},
+  url       = {http://dx.doi.org/10.1007/11866763_8},
+  DOI       = {10.1007/11866763_8},
+  booktitle = {Medical Image Computing and Computer-Assisted Intervention -- MICCAI 2006},
+  publisher = {Springer Berlin Heidelberg},
+  author    = {Grabner, G{\"u}nther and Janke, Andrew L. and Budge, Marc M. and Smith, David and Pruessner, Jens and Collins, D. Louis},
+  year      = {2006},
+  pages     = {58--66}
 }
 
-@article{lakens2017,
-  title       = {Equivalence Tests: A Practical Primer for t Tests, Correlations, and Meta-Analyses},
-  author      = {Lakens, Dani{\"e}l},
-  journal     = {Social Psychological and Personality Science},
-  volume      = {8},
-  number      = {4},
-  pages       = {355--362},
-  year        = {2017},
-  doi         = {10.1177/1948550617697177},
+@article{ransohoff1978spectrum,
+  title       = {Problems of Spectrum and Bias in Evaluating the Efficacy of Diagnostic Tests},
+  author      = {Ransohoff, David F. and Feinstein, Alvan R.},
+  journal     = {New England Journal of Medicine},
+  volume      = {299},
+  number      = {17},
+  pages       = {926--930},
+  year        = {1978},
+  doi         = {10.1056/NEJM197810262991705},
+  publisher   = {Massachusetts Medical Society},
+  shortjournal= {New Engl. J. Med.},
+  url         = {https://doi.org/10.1056/NEJM197810262991705}
+}
+
+@article{mulherin2002spectrum,
+  title       = {Spectrum Bias or Spectrum Effect? Subgroup Variation in Diagnostic Test Evaluation},
+  author      = {Mulherin, Stephanie A. and Miller, William C.},
+  journal     = {Annals of Internal Medicine},
+  volume      = {137},
+  number      = {7},
+  pages       = {598--602},
+  year        = {2002},
+  doi         = {10.7326/0003-4819-137-7-200210010-00011},
+  publisher   = {American College of Physicians},
+  shortjournal= {Ann. Intern. Med.},
+  url         = {https://doi.org/10.7326/0003-4819-137-7-200210010-00011}
+}
+
+@article{vergouwe2010casemix,
+  title       = {External Validity of Risk Models: Use of Benchmark Values to Disentangle a Case-Mix Effect From Incorrect Coefficients},
+  author      = {Vergouwe, Yvonne and Moons, Karel G. M. and Steyerberg, Ewout W.},
+  journal     = {American Journal of Epidemiology},
+  volume      = {172},
+  number      = {8},
+  pages       = {971--980},
+  year        = {2010},
+  doi         = {10.1093/aje/kwq223},
+  publisher   = {Oxford University Press},
+  shortjournal= {Amer. J. Epidemiol.},
+  url         = {https://doi.org/10.1093/aje/kwq223}
+}
+
+@article{vergouwe2005samplesize,
+  title   = {Substantial effective sample sizes were required for external validation studies of predictive logistic regression models},
+  author  = {Vergouwe, Yvonne and Steyerberg, Ewout W. and Eijkemans, Marinus J. C. and Habbema, J. Dik F.},
+  journal = {Journal of Clinical Epidemiology},
+  volume  = {58},
+  number  = {5},
+  pages   = {475--483},
+  year    = {2005},
+  doi     = {10.1016/j.jclinepi.2004.06.017},
+  publisher = {Elsevier}
+}
+
+@book{steyerberg2019clinical,
+  title     = {Clinical Prediction Models: A Practical Approach to Development, Validation, and Updating},
+  author    = {Steyerberg, Ewout W.},
+  series    = {Statistics for Biology and Health},
+  edition   = {2nd},
+  year      = {2019},
+  publisher = {Springer International Publishing},
+  doi       = {10.1007/978-3-030-16399-0},
+  isbn      = {9783030163990}
+}
+
+@article{levy2024multivariate,
+  title       = {Multivariate lesion symptom mapping for predicting trajectories of recovery from aphasia},
+  author      = {Levy, Deborah F. and Entrup, Jillian L. and Schneck, Sarah M. and Onuscheck, Caitlin F. and Rahman, Maysaa and Kasdan, Anna and Casilio, Marianne and Willey, Emma and Davis, L. Taylor and de Riesthal, Michael and Kirshner, Howard S. and Wilson, Stephen M.},
+  journal     = {Brain Communications},
+  volume      = {6},
+  number      = {1},
+  year        = {2024},
+  doi         = {10.1093/braincomms/fcae024},
+  publisher   = {Oxford University Press},
+  eid         = {fcae024},
+  shortjournal= {Brain Commun.},
+  url         = {https://doi.org/10.1093/braincomms/fcae024}
+}
+
+@article{ding2024metric,
+  title       = {Metric comparison of connectome-based lesion-symptom mapping in post-stroke aphasia},
+  author      = {Ding, Junhua and Thye, Melissa and Edmondson-Stait, Amelia J. and Szaflarski, Jerzy P. and Mirman, Daniel},
+  journal     = {Brain Communications},
+  volume      = {6},
+  number      = {5},
+  year        = {2024},
+  doi         = {10.1093/braincomms/fcae313},
+  publisher   = {Oxford University Press},
+  eid         = {fcae313},
+  shortjournal= {Brain Commun.},
+  url         = {https://doi.org/10.1093/braincomms/fcae313}
+}
+
+@article{hu2025multimodal,
+  title       = {Aphasia severity prediction using a multi-modal machine learning approach},
+  author      = {Hu, Xinyi and Varkanitsa, Maria and Kropp, Emerson and Betke, Margrit and Ishwar, Prakash and Kiran, Swathi},
+  journal     = {NeuroImage},
+  volume      = {317},
+  year        = {2025},
+  doi         = {10.1016/j.neuroimage.2025.121300},
+  publisher   = {Elsevier},
+  eid         = {121300},
+  url         = {https://doi.org/10.1016/j.neuroimage.2025.121300}
+}
+
+@article{hildesheim2024predicting,
+  title       = {Predicting Language Function Post-Stroke: A Model-Based Structural Connectivity Approach},
+  author      = {Hildesheim, Franziska E. and Ophey, Anja and Zumbansen, Anna and Funck, Thomas and Schuster, Tibor and Jamison, Keith W. and Kuceyeski, Amy and Thiel, Alexander},
+  journal     = {Neurorehabilitation and Neural Repair},
+  volume      = {38},
+  number      = {6},
+  pages       = {447--459},
+  year        = {2024},
+  doi         = {10.1177/15459683241245410},
   publisher   = {SAGE Publications},
-  shortjournal= {Social Psychol. Personality Sci.},
-  url         = {https://doi.org/10.1177/1948550617697177}
+  shortjournal= {Neurorehabil. Neural Repair},
+  url         = {https://doi.org/10.1177/15459683241245410}
+}
+
+@inproceedings{chen2024legnet,
+  title       = {A Lesion-Aware Edge-Based Graph Neural Network for Predicting Language Ability in Patients with Post-stroke Aphasia},
+  author      = {Chen, Zijian and Varkanitsa, Maria and Ishwar, Prakash and Konrad, Janusz and Betke, Margrit and Kiran, Swathi and Venkataraman, Archana},
+  booktitle   = {Machine Learning in Clinical Neuroimaging (MLCN 2024)},
+  series      = {Lecture Notes in Computer Science},
+  pages       = {91--101},
+  year        = {2025},
+  doi         = {10.1007/978-3-031-78761-4_9},
+  publisher   = {Springer},
+  url         = {https://doi.org/10.1007/978-3-031-78761-4_9},
+  volume      = {15266},
+  address     = {Cham, Switzerland}
+}
+
+@article{li2026scoping,
+  title   = {Machine learning models in post-stroke aphasia: a scoping review},
+  author  = {Li, Xiaoxue and Song, Hengjie and Guo, Ningjing and Kang, Congmin and Gong, Xiaoyan and Ji, Xinyu and Zheng, Jie},
+  journal = {Frontiers in Neurology},
+  volume  = {17},
+  pages   = {1806856},
+  year    = {2026},
+  doi     = {10.3389/fneur.2026.1806856},
+  publisher = {Frontiers Media}
+}
+
+
+% Crossref and primary full text verified 2026-10-02; no matching Zotero library item.
+@article{walker2018cognitive,
+  author       = {Walker, Grant M. and Hickok, Gregory and Fridriksson, Julius},
+  title        = {A cognitive psychometric model for assessment of picture naming abilities in aphasia},
+  journal      = {Psychological Assessment},
+  shortjournal = {Psychol. Assess.},
+  year         = {2018},
+  volume       = {30},
+  number       = {6},
+  pages        = {809--826},
+  doi          = {10.1037/pas0000529},
+  url          = {https://doi.org/10.1037/pas0000529}
+}
+
+% DOI content-negotiated BibTeX; primary text checked 2026-09-22.
+@article{halai2020parameters,
+  title       = {Investigating the effect of changing parameters when building prediction models for post-stroke aphasia},
+  volume      = {4},
+  issn        = {2397-3374},
+  url         = {https://doi.org/10.1038/s41562-020-0854-5},
+  doi         = {10.1038/s41562-020-0854-5},
+  number      = {7},
+  journal     = {Nature Human Behaviour},
+  publisher   = {Springer Science and Business Media LLC},
+  author      = {Halai, Ajay D. and Woollams, Anna M. and Lambon Ralph, Matthew A.},
+  year        = {2020},
+  month       = jul,
+  pages       = {725--735},
+  shortjournal= {Nat. Hum. Behav.}
+}
+
+% DOI content-negotiated BibTeX; primary text checked 2026-09-22.
+@article{teghipco2024stable,
+  title       = {Stable multivariate lesion symptom mapping},
+  volume      = {4},
+  issn        = {2957-3963},
+  url         = {https://doi.org/10.52294/001c.117311},
+  doi         = {10.52294/001c.117311},
+  journal     = {Aperture Neuro},
+  publisher   = {Organization for Human Brain Mapping},
+  author      = {Teghipco, Alex and Newman-Norlund, Roger and Gibson, Makayla and Bonilha, Leonardo and Absher, John and Fridriksson, Julius and Rorden, Christopher},
+  year        = {2024},
+  month       = jun
+}
+
+@article{akiba2019optuna,
+  author = {Akiba, Takuya and Sano, Shotaro and Yanase, Toshihiko and Ohta, Takeru and Koyama, Masanori},
+  title = {Optuna: A Next-generation Hyperparameter Optimization Framework},
+  journal = {arXiv preprint arXiv:1907.10902},
+  year = {2019},
+  url = {https://arxiv.org/abs/1907.10902}
 }

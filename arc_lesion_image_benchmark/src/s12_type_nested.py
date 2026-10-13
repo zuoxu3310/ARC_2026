@@ -1,25 +1,31 @@
 #!/usr/bin/env python
 """
-s12_type_nested.py — 失语类型【二分类】的泄露安全嵌套调参 vs 默认 + 每人 dump + bootstrap CI
+s12_type_nested.py - leakage-safe nested tuning vs default for binary aphasia-type
+classification, with per-patient probability dumps and bootstrap CIs.
 
-镜像 s3b_classification_nested_dump.py, 但目标换成类型二分(--task):
-  fluent : 1=非流畅 {Broca,Global,TranscorticalMotor,TranscorticalMixed}
-           0=流畅   {Wernicke,Conduction,Anomic,TranscorticalSensory}
-  broca  : 1=Broca, 0=其它失语类型(去 None/NaN)
+Mirrors s3b_classification_nested_dump.py, but the target is a binary aphasia-type
+split (--task):
+  fluent : 1=non-fluent {Broca,Global,TranscorticalMotor,TranscorticalMixed}
+           0=fluent     {Wernicke,Conduction,Anomic,TranscorticalSensory}
+  broca  : 1=Broca, 0=any other aphasia type (None/NaN excluded)
 
-协议与 s3b 完全一致:
-  - 整条 [scaler -> SMOTE -> clf] 封 imblearn Pipeline; tuned 用 GridSearchCV(内层 StratifiedKFold)
-    只在外层训练折上 fit; default 同一条 Pipeline 默认超参。外层重复分层 5x10。
-  - 每人跨 repeat 平均折外概率 -> 患者层 bootstrap CI(B=2000)。
-  - dump: results/runs/clf_type_{task}_{gran}_{model}_{tag}_patient_probs.csv (每人一行, 供 s13/s14)
-          results/runs/clf_type_{task}_{gran}_{model}_{tag}_oof_probs.csv     (每人逐折, 供 DeLong)
+Protocol identical to s3b:
+  - The full [scaler -> SMOTE -> clf] chain is wrapped in an imblearn Pipeline; "tuned"
+    uses GridSearchCV (inner StratifiedKFold) fit on the outer training fold only;
+    "default" uses the same Pipeline with default hyperparameters. Outer CV: repeated
+    stratified 5x10.
+  - Out-of-fold probabilities are averaged per patient across repeats -> patient-level
+    bootstrap CI (B=2000).
+  - Dumps: results/runs/clf_type_{task}_{gran}_{model}_{tag}_patient_probs.csv (one row per patient, used by s13/s14)
+           results/runs/clf_type_{task}_{gran}_{model}_{tag}_oof_probs.csv     (per patient per fold, used by DeLong)
 
-正类约定: pos=1 (fluent->非流畅, broca->Broca)。指标: balanced_acc/AUC/F1(pos)/MCC/精确率/召回率。
+Positive class: pos=1 (fluent -> non-fluent, broca -> Broca).
+Metrics: balanced_acc / AUC / F1(pos) / MCC / precision / recall.
 
-运行(全量, RF+XGB+LGBM+SVM+LogReg, fluent & broca):
-  PYENV_VERSION=data-analysis python src/s12_type_nested.py \
+Run (full: RF+XGB+LGBM+SVM+LogReg, fluent & broca):
+  python src/s12_type_nested.py \
       --table data/jhu156_features_merged.tsv --name JHU_fine --task fluent
-  (TabPFN 不在此处; 类型 TabPFN 看 s11 主榜)
+  (TabPFN is not run here; the type-task TabPFN baseline is in the s11 main leaderboard.)
 """
 from __future__ import annotations
 import argparse
@@ -224,13 +230,13 @@ def fmt_ci(point, ci):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--table", required=True)
-    ap.add_argument("--name", required=True, help="粒度: JHU_fine / arterial_coarse")
+    ap.add_argument("--name", required=True, help="granularity: JHU_fine / arterial_coarse")
     ap.add_argument("--task", required=True, choices=["fluent", "broca"])
     ap.add_argument("--models", nargs="*", default=TUNABLE_MODELS)
     ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args()
     if any(m == "TabPFN" for m in args.models):
-        raise SystemExit("TabPFN 类型基线看 s11 主榜, 不在此处(防同进程假死)。")
+        raise SystemExit("The TabPFN type baseline is in the s11 main leaderboard, not here (avoids in-process hangs).")
 
     table = PKG / args.table if not Path(args.table).is_absolute() else Path(args.table)
     X, y, pids, feat = load_xy(table, args.task)
@@ -242,7 +248,7 @@ def main():
     rows = []
     for name in args.models:
         if name not in TUNABLE_MODELS:
-            print(f"  跳过 {name}", flush=True); continue
+            print(f"  skip {name}", flush=True); continue
         for tuned in [False, True]:
             tag = "tuned" if tuned else "default"
             t0 = time.time()

@@ -1,24 +1,28 @@
 #!/usr/bin/env python
 """
-s6_significance_regression.py  ——  回归【患者级配对显著性】检验
+s6_significance_regression.py -- patient-level paired significance tests (regression)
 
-对比(都是"病灶单模态信息天花板"叙事的关键零假设, 看差的 95%CI 是否跨 0 / p 是否不显著):
-  1) 细 vs 粗 (JHU_fine vs arterial_coarse), RandomForest:
-       - Steiger's z: 比两个【相依】Pearson r(同一批人、同一 y)。
-       - 患者级配对 bootstrap(B=2000, 对"人"重抽样): r 差 与 MAE 差 -> 差值+95%CI+双尾 p。
+Contrasts (key null hypotheses for the "lesion-only information ceiling" argument; check whether
+the 95% CI of the difference crosses 0 / whether p is non-significant):
+  1) fine vs coarse (JHU_fine vs arterial_coarse), RandomForest:
+       - Steiger's z: compares two dependent Pearson r (same patients, same y).
+       - Patient-level paired bootstrap (B=2000, resampling patients): r difference and MAE
+         difference -> difference + 95% CI + two-sided p.
   2) tuned vs default (RandomForest, JHU_fine):
-       - 患者级配对 bootstrap: r 差 与 MAE 差 -> 差值+95%CI+双尾 p。
+       - Patient-level paired bootstrap: r difference and MAE difference -> difference + 95% CI
+         + two-sided p.
 
-铁律(逐条对照任务要求)
-----------------------
-- 用【患者级】逐人预测(每人一个值: reg_*_patient_pred.csv 的 y_pred_mean), 不用逐折,
-  避免重复 CV 相关性把样本量灌水。
-- 配对、同一批病人: 用 participant_id 做 inner merge 对齐; bootstrap 对【人】重抽样,
-  同一次重抽样里两套预测取相同的人, 保证配对。
-- 回归两个 r 是【相依相关】(同一批人、同一 y), 用 Steiger's z。
-- 只输出每个对比的【原始 p + 差值 + 95%CI】, 不做多重比较校正(主控统一 Holm/FDR)。
+Rules
+-----
+- Use patient-level predictions (one value per patient: y_pred_mean in reg_*_patient_pred.csv),
+  not per-fold values, so correlated repeated-CV predictions do not inflate the sample size.
+- Paired, same patients: align by inner merge on participant_id; the bootstrap resamples
+  patients, and each resample uses the same patients for both prediction sets, keeping the pairing.
+- The two regression r values are dependent correlations (same patients, same y): use Steiger's z.
+- Report only the raw p + difference + 95% CI per contrast; no multiple-comparison correction
+  here (Holm/FDR is applied jointly downstream).
 
-输出: results/summary/significance_regression.csv
+Output: results/summary/significance_regression.csv
 """
 from __future__ import annotations
 import os
@@ -35,24 +39,24 @@ SEED = 42
 
 
 def load_pred(name, model, config):
-    """读一个逐人 dump: participant_id, y_true, y_pred_mean。返回按 id 索引的 DataFrame。"""
+    """Read one per-patient dump: participant_id, y_true, y_pred_mean. Returns a DataFrame indexed by id."""
     path = os.path.join(RUNS, f"reg_{name}_{model}_{config}_patient_pred.csv")
     df = pd.read_csv(path)
     return df.set_index("participant_id")
 
 
 def align_two(a, b):
-    """按 participant_id 取交集对齐两套预测, 校验 y_true 一致(同一批人、同一 y)。
+    """Align two prediction sets on the shared participant_ids; check that y_true agrees (same patients, same y).
 
-    返回 (y_true[N], pred_a[N], pred_b[N], ids[N])。
+    Returns (y_true[N], pred_a[N], pred_b[N], ids[N]).
     """
     ids = a.index.intersection(b.index)
-    ids = ids.sort_values()                       # 固定顺序, 可复现
+    ids = ids.sort_values()                       # fixed order, reproducible
     aa = a.loc[ids]
     bb = b.loc[ids]
-    # 同一批人、同一 y: 两边 y_true 必须一致(允许浮点误差)
+    # same patients, same y: y_true must agree on both sides (up to float error)
     dy = np.abs(aa["y_true"].to_numpy() - bb["y_true"].to_numpy()).max()
-    assert dy < 1e-6, f"y_true 不一致, max abs diff={dy}"
+    assert dy < 1e-6, f"y_true mismatch, max abs diff={dy}"
     y = aa["y_true"].to_numpy(dtype=float)
     pa = aa["y_pred_mean"].to_numpy(dtype=float)
     pb = bb["y_pred_mean"].to_numpy(dtype=float)
@@ -60,10 +64,10 @@ def align_two(a, b):
 
 
 def steiger_z(y, pa, pb):
-    """Steiger's z (1980): 两个相依相关 r(y,pa) 与 r(y,pb) 之差的检验。
+    """Steiger's z (1980): test of the difference between two dependent correlations r(y,pa) and r(y,pb).
 
-    共享变量 y, 比较 r_ya 与 r_yb; 还需 r_ab(两套预测之间的相关)。
-    返回 (r_ya, r_yb, z, p_two_sided)。
+    Shared variable y; compares r_ya with r_yb; also needs r_ab (correlation between the two prediction sets).
+    Returns (r_ya, r_yb, z, p_two_sided).
     """
     n = len(y)
     r_ya = pearsonr(y, pa)[0]
@@ -82,12 +86,13 @@ def steiger_z(y, pa, pb):
 
 
 def paired_bootstrap_diff(y, pa, pb, b=B, seed=SEED):
-    """患者级配对 bootstrap: 对【人】重抽样, 同一次抽样里两套预测取相同的人。
+    """Patient-level paired bootstrap: resample patients; each resample uses the same patients for both prediction sets.
 
-    返回两个 metric 差(a-b)的 dict:
+    Returns a dict with two metric differences (a - b):
       r_diff   = r(y,pa) - r(y,pb)
       mae_diff = MAE(y,pa) - MAE(y,pb)
-    每个含 point(全样本观测差), ci(2.5/97.5 百分位), p(双尾, 基于 bootstrap 分布跨 0)。
+    Each holds point (observed full-sample difference), ci (2.5/97.5 percentiles) and p (two-sided,
+    from how much of the bootstrap distribution lies on each side of 0).
     """
     n = len(y)
     rng = np.random.default_rng(seed)
@@ -100,9 +105,9 @@ def paired_bootstrap_diff(y, pa, pb, b=B, seed=SEED):
     point_r, point_mae = metrics(y, pa, pb)
     boot_r, boot_mae = [], []
     for _ in range(b):
-        idx = rng.integers(0, n, size=n)          # 对"人"重抽样, 同一组 idx 用于两套预测 -> 配对
+        idx = rng.integers(0, n, size=n)          # resample patients; the same idx is used for both prediction sets -> paired
         yy = y[idx]
-        if np.ptp(yy) == 0:                       # 退化样本(全相同 y), 跳过
+        if np.ptp(yy) == 0:                       # degenerate resample (constant y), skip
             continue
         qa, qb = pa[idx], pb[idx]
         if np.ptp(qa) == 0 or np.ptp(qb) == 0:
@@ -115,7 +120,7 @@ def paired_bootstrap_diff(y, pa, pb, b=B, seed=SEED):
 
     def summarize(point, arr):
         lo, hi = np.percentile(arr, [2.5, 97.5])
-        # 双尾 bootstrap p: 2 * min(P(diff<=0), P(diff>=0)), 经验分布
+        # two-sided bootstrap p: 2 * min(P(diff<=0), P(diff>=0)), empirical distribution
         p_le = np.mean(arr <= 0)
         p_ge = np.mean(arr >= 0)
         p = min(1.0, 2 * min(p_le, p_ge))
@@ -133,16 +138,17 @@ def point_metrics(y, p):
 def main():
     rows = []
 
-    # ---- 对比 1: 细 vs 粗, RandomForest (default) ----
-    # 注: 主表口径为默认超参(DECISIONS: 主表保持默认超参); 故粗细对比用 default 预测。
+    # ---- Contrast 1: fine vs coarse, RandomForest (default) ----
+    # Note: the main table uses default hyperparameters, so the fine-vs-coarse contrast uses the
+    # default predictions.
     fine = load_pred("JHU_fine", "RandomForest", "default")
     coarse = load_pred("arterial_coarse", "RandomForest", "default")
     y, p_fine, p_coarse, ids = align_two(fine, coarse)
     r_fine, mae_fine = point_metrics(y, p_fine)
     r_coarse, mae_coarse = point_metrics(y, p_coarse)
-    # Steiger's z(细 vs 粗, 同 y 的相依 r)
+    # Steiger's z (fine vs coarse, dependent r on the same y)
     sr_fine, sr_coarse, sz, sp = steiger_z(y, p_fine, p_coarse)
-    # 配对 bootstrap(细 - 粗)
+    # paired bootstrap (fine - coarse)
     bd = paired_bootstrap_diff(y, p_fine, p_coarse)
     print(f"[fine vs coarse RF] n_paired={len(ids)}  "
           f"r_fine={r_fine:.3f} r_coarse={r_coarse:.3f}  "
@@ -172,14 +178,14 @@ def main():
         "boot_n_valid": bd["mae"][4],
     })
 
-    # ---- 对比 2: tuned vs default, RandomForest, JHU_fine ----
+    # ---- Contrast 2: tuned vs default, RandomForest, JHU_fine ----
     tuned = load_pred("JHU_fine", "RandomForest", "tuned")
     default = load_pred("JHU_fine", "RandomForest", "default")
     y2, p_tuned, p_default, ids2 = align_two(tuned, default)
     r_tuned, mae_tuned = point_metrics(y2, p_tuned)
     r_default, mae_default = point_metrics(y2, p_default)
     bd2 = paired_bootstrap_diff(y2, p_tuned, p_default)
-    # tuned vs default 也是同 y 的相依 r, 一并给 Steiger 作交叉佐证
+    # tuned vs default are also dependent r on the same y; Steiger's z is reported as a cross-check
     _, _, sz2, sp2 = steiger_z(y2, p_tuned, p_default)
     print(f"[tuned vs default RF JHU] n_paired={len(ids2)}  "
           f"r_tuned={r_tuned:.3f} r_default={r_default:.3f}  "

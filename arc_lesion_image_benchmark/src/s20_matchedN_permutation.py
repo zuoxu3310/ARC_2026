@@ -3,19 +3,28 @@
 """
 s20_matchedN_permutation.py
 ===========================
-任务3 第 4 步: 匹配-N 成分对照(正式置换检验)。驳"换子集只是样本量小所以抖"。
+Matched-N composition control (formal permutation test). Tests whether the score
+differences between subsets can be explained by smaller sample size alone.
 
-设计(refine-logs/TASK3_DESIGN_PREREG_2026-06-13.md §5):
-  对每个标准子集(大小 n_k), 从 Full 抽 B 个【按 WAB-AQ 直方图分层】的随机子样
-  —— 用 50(severe 边界)和 90(天花板)当分箱边界, 一次匹配住 N + severe 先验 + 量程 SD。
-  每随机子样整管线从头重训(折划分+scaler+SMOTE+模型全刷新, 不共享任何 fit/折索引)。
-  建经验零分布 -> 报子集指标的双侧经验 p + 成分效应(子集分 - 零均值) + 是否落零带外。
-  aq_le90 的匹配抽样自动约束到 y<=90 支撑 -> 同时控住量程截断。
+Design (fixed before running):
+  For each standard subset (size n_k), draw B random subsamples from Full, stratified
+  by the WAB-AQ histogram -- bin edges include 50 (severe boundary) and 90 (ceiling),
+  so N, the severe prior and the target SD are matched at once.
+  Each random subsample retrains the whole pipeline from scratch (fresh folds, scaler,
+  SMOTE and model; no fit or fold indices are shared).
+  Build an empirical null distribution -> report the subset metric's two-sided empirical
+  p, the composition effect (subset score - null mean), and whether the score falls
+  outside the null band.
+  For aq_le90 the matched draws are automatically restricted to the y <= 90 support,
+  which also controls for range restriction.
 
-判定规则(跑前定): α=0.05; 落带外(p<0.05) = 摆幅是成分不是样本量; 落带内如实报。
-RNG: 抽样 RNG 与 CV RNG 独立且固定; 每抽样独立重训。
+Decision rule (fixed before running): alpha = 0.05; outside the band (p < 0.05) = the
+difference is due to composition, not sample size; results inside the band are reported
+as they are.
+RNG: the sampling RNG and the CV RNG are independent and fixed; each draw is retrained
+independently.
 
-用法: PYENV_VERSION=data-analysis python src/s20_matchedN_permutation.py --task regression --B 1000
+Usage: python src/s20_matchedN_permutation.py --task regression --B 1000
 """
 from __future__ import annotations
 import argparse
@@ -27,13 +36,13 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-# 复用 s18 的管线/模型/单元评估, 保证同一条固定管线
+# Reuse s18's pipeline / models / cell evaluation so that the same fixed pipeline is used
 import s18_crossed_grid as g
 
 PKG = g.PKG
 SUBSET_DIR = g.SUBSET_DIR
 SUMM = os.path.join(PKG, "results", "summary")
-BIN_EDGES = [-0.1, 25, 50, 70, 90, 100.1]   # 50=severe 边界, 90=天花板边界
+BIN_EDGES = [-0.1, 25, 50, 70, 90, 100.1]   # 50 = severe boundary, 90 = ceiling boundary
 CV_SEED = 2024
 DRAW_BASE = 7000
 
@@ -60,12 +69,13 @@ def main():
     X_full, y_full, keep = g.load_full_pool()
     full_bins, _ = bin_counts(y_full, BIN_EDGES)
     full_bins = pd.Series(full_bins.values, index=X_full.index)
-    # 每个 bin 在 Full 里的成员(键强制 int, 防 pd.cut 浮点码与 need 的 int 键对不上)
+    # Members of each bin in Full (keys forced to int so pd.cut float codes match the int keys of need)
     bin_members = {int(b): full_bins.index[full_bins == b].tolist()
                    for b in sorted(full_bins.dropna().unique())}
 
     man = pd.read_csv(os.path.join(SUBSET_DIR, "subset_manifest.csv"))
-    # 只对标准子集(去 full 基线)做对照; teghipco 精确同人也跑(当锚点)
+    # Run the control for standard subsets only (excluding the full baseline); the exact
+    # Teghipco cohort is also run (as an anchor)
     targets = [s for s in man["subset"].tolist() if s != "full"]
 
     rng = np.random.default_rng(DRAW_BASE)
@@ -74,12 +84,12 @@ def main():
     for sub in targets:
         ids = [i for i in g.load_subset_ids(sub) if i in X_full.index]
         Xs, ys = X_full.loc[ids], y_full.loc[ids]
-        # 子集的 bin 直方图
+        # Bin histogram of the subset
         sub_bins, sub_hist = bin_counts(ys, BIN_EDGES)
         need = {int(b): int(c) for b, c in sub_hist.items()}
         for model in models:
             obs = eval_subset(Xs, ys, model, args.task)
-            # 零分布: B 次匹配直方图随机抽样
+            # Null distribution: B random draws matching the subset histogram
             null = []
             for _ in range(args.B):
                 draw_ids = []
@@ -93,7 +103,7 @@ def main():
             null = np.array(null)
             null_mean = float(null.mean())
             lo, hi = float(np.percentile(null, 2.5)), float(np.percentile(null, 97.5))
-            # 双侧经验 p
+            # Two-sided empirical p
             p_two = 2 * min(np.mean(null >= obs), np.mean(null <= obs))
             p_two = float(min(1.0, p_two))
             comp = obs - null_mean
@@ -114,7 +124,7 @@ def main():
     out.to_csv(os.path.join(SUMM, f"matchedN_perm_{args.task}.csv"), index=False)
     n_out = int(out["outside_band"].sum())
     print(f"\n[write] matchedN_perm_{args.task}.csv  "
-          f"{n_out}/{len(out)} (子集×模型) 落零带外(成分效应显著)", flush=True)
+          f"{n_out}/{len(out)} (subset x model) outside the null band (significant composition effect)", flush=True)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,65 @@
+Public copy of the frozen protocol: process-management sentences are removed. The SHA256 in the run's frozen.json refers to the authors' archived original.
+
+Optuna extension of the completed same-input comparison, 2026-10-04
+
+Purpose
+This analysis runs 100 Optuna trials for XGBoost after the fixed-model
+results were known. This is an explicitly exploratory extension on the already inspected
+public dataset, not a new untouched confirmatory experiment. Do not choose or
+change the search after inspecting the new outer-test outcomes.
+
+Data and comparison
+Reuse all 173 author-released patients, author labels, per-image normalization,
+all 7106 image entries and the frozen 20 repeats x 6 outer folds from
+outputs/cnn-same-input-2026-10-03/. Reuse the saved CNN and fixed XGBoost
+predictions. No retraining of CNN; no added features, patient exclusions or
+changes to outer partitions. Final tuned XGBoost fits the whole outer
+development pool, following the previous classical-model protocol.
+
+Search
+Run a separate deterministic Optuna TPE study with exactly 100 completed trials
+inside EACH outer development pool: 120 studies, 12000 candidate evaluations.
+Each trial fits three stratified inner folds. Select parameters by severe-class
+F1 on the concatenated inner out-of-fold predictions at threshold 0.5. All three
+inner folds finish for every trial; no pruning, early stopping or test feedback.
+The sampler uses 20 startup trials, then TPE, with a fixed per-unit seed. Trial
+zero enqueues the existing fixed XGBoost configuration. Ties retain the earliest
+trial. All trials and inner predictions are saved, including worse outcomes.
+
+Ranges (frozen in run.py): 100..800 trees in steps of 50; learning rate .01.. .2
+(log); depth 1..6; minimum child weight .1..20 (log); row fraction .6..1;
+column fraction .4..1; L1 [0,.001,.01,.1,1,10]; L2 .1..100 (log);
+split penalty 0..5; positive sample-weight multiplier .5..4 (log).
+Retain training-derived inverse-frequency sample weights N/N_class and multiply
+only positive-class weights by the searched multiplier. Class counts are always
+computed within the fitting fold. XGBoost CPU histogram trees, one thread per
+fit, eight independent outer units in parallel.
+
+Decision-threshold analysis
+Primary tuned output: selected parameters, threshold 0.5 (XGB_Optuna).
+Secondary output: SAME selected model, threshold chosen to maximize pooled
+inner F1 on grid .10,.11,...,.90 (XGB_Optuna_threshold).
+Threshold ties: closest to .5, then smaller threshold. Save threshold before
+accessing outer-test rows. Do not pick between these outputs using test scores.
+An additional diagnostic applies an inner-selected threshold to the existing
+fixed XGBoost outer predictions (XGB_fixed_threshold), using trial-zero inner
+predictions. This isolates threshold selection from hyperparameter changes.
+
+Reporting
+Report every repeat, means/SDs, severe F1, balanced accuracy, AUC, precision,
+recall and confusion counts. Compare the tuned outputs with the same existing
+CNN and fixed XGBoost predictions, never with a different population or the
+original article's aggregate score. Calculate paired stratified patient-cluster
+bootstrap intervals with 5000 draws, sharing sampled patients across all methods
+and repeats; saved models fixed, exploratory intervals unadjusted. No equivalence
+or noninferiority claim without a justified margin. Search budget is additional
+for XGBoost; this is not equal-budget optimization of all architectures.
+
+Verification and persistence
+Test partition disjointness, inner objective and threshold selection, parameter
+round trip, preservation of old outputs, and reproduction of the old fixed
+XGBoost fit before starting. Save a resumable Optuna/sampler state and all inner
+predictions after each completed trial. Verify all selected trials from saved
+inner predictions, reload every new outer model, and independently recalculate
+outer metrics and intervals. A supervisor watches subprocess exit, heartbeat
+and runtime.

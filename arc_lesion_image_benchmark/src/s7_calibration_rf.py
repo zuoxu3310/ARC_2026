@@ -1,16 +1,23 @@
 #!/usr/bin/env python
 """
-s7_calibration_rf.py — RandomForest 折外概率的校准分析(在原始患病率上)。
+s7_calibration_rf.py - calibration analysis of RandomForest out-of-fold probabilities
+(at the original prevalence).
 
-背景:统一协议折内做 StandardScaler->SMOTE->clf。SMOTE 把训练子折平衡到 50/50,
-RF 在平衡分布上训出来的折外概率会系统偏高(相对真实患病率 ~0.319)。
-本脚本在【原始标签分布】上量化失准,并报可修复性(Platt / isotonic 重校准)。
+Background: the common protocol applies StandardScaler -> SMOTE -> clf within each fold.
+SMOTE balances the training sub-fold to 50/50, so out-of-fold probabilities from an RF
+trained on the balanced distribution are systematically too high (relative to the true
+prevalence of ~0.319). This script quantifies the miscalibration on the original label
+distribution and reports how far it can be repaired (Platt / isotonic recalibration).
 
-关键无泄露约束:
-- 原始 Brier/ECE/可靠性曲线直接在 dump 的逐人折外概率上算(dump 本身是 5x10 折外聚合,无泄露)。
-- 重校准(Platt/isotonic)若在全样本 fit 再全样本评 = 乐观偏差。故用分层 5 折 CV 拟合校准映射:
-  校准器只在校准训练折 fit,在校准留出折出概率,拼回 226 人 -> 样本外重校准概率。
-  这样重校准后的 Brier 也是诚实的样本外估计。
+Key no-leakage constraints:
+- Raw Brier / ECE / reliability curves are computed directly on the dumped per-patient
+  out-of-fold probabilities (the dump is itself a 5x10 out-of-fold aggregate; no leakage).
+- Fitting a recalibration (Platt / isotonic) on the full sample and evaluating on the
+  full sample would be optimistically biased. The calibration map is therefore fitted
+  with stratified 5-fold CV: the calibrator is fit on the calibration training folds
+  only and predicts on the held-out fold; predictions are reassembled for all 226
+  patients -> out-of-sample recalibrated probabilities. The recalibrated Brier is thus
+  also an honest out-of-sample estimate.
 """
 import os
 import numpy as np
@@ -42,10 +49,10 @@ def brier(y, p):
 
 
 def reliability(y, p, n_bins=N_BINS):
-    """等宽 10 分箱:返回每箱 (bin_lo, bin_hi, n, mean_pred, frac_pos)。"""
+    """Equal-width 10 bins: returns (bin_lo, bin_hi, n, mean_pred, frac_pos) per bin."""
     edges = np.linspace(0.0, 1.0, n_bins + 1)
     rows = []
-    # 用 [lo,hi) 且最后一箱含右端
+    # Bins are [lo, hi); the last bin includes the right edge
     idx = np.clip(np.digitize(p, edges[1:-1], right=False), 0, n_bins - 1)
     for b in range(n_bins):
         m = idx == b
@@ -60,7 +67,7 @@ def reliability(y, p, n_bins=N_BINS):
 
 
 def ece(y, p, n_bins=N_BINS):
-    """Expected Calibration Error:等宽分箱,按箱样本数加权 |mean_pred - frac_pos|。"""
+    """Expected Calibration Error: equal-width bins, |mean_pred - frac_pos| weighted by bin size."""
     rows = reliability(y, p, n_bins)
     N = len(y)
     e = 0.0
@@ -71,15 +78,16 @@ def ece(y, p, n_bins=N_BINS):
 
 
 def mce(y, p, n_bins=N_BINS):
-    """Maximum Calibration Error:最大单箱偏差。"""
+    """Maximum Calibration Error: largest single-bin gap."""
     rows = reliability(y, p, n_bins)
     gaps = [abs(mp - fp) for _, _, n, mp, fp in rows if n > 0]
     return float(max(gaps)) if gaps else np.nan
 
 
 def cv_recalibrate(y, p, method, folds=CALIB_FOLDS, seed=SEED):
-    """分层 CV 拟合校准映射,返回样本外重校准概率(无泄露)。
-    method: 'sigmoid'(Platt) 或 'isotonic'。
+    """Fit the calibration map with stratified CV; return out-of-sample recalibrated
+    probabilities (no leakage).
+    method: 'sigmoid' (Platt) or 'isotonic'.
     """
     y = np.asarray(y, dtype=float)
     p = np.asarray(p, dtype=float)
@@ -87,7 +95,7 @@ def cv_recalibrate(y, p, method, folds=CALIB_FOLDS, seed=SEED):
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
     for tr, te in skf.split(p.reshape(-1, 1), y):
         if method == "sigmoid":
-            # Platt: 在 logit(原概率) 上做一元 LR;clip 防 0/1 取 log 爆
+            # Platt: univariate LR on logit(raw probability); clip to avoid log(0) at 0/1
             ptr = np.clip(p[tr], 1e-6, 1 - 1e-6)
             z = np.log(ptr / (1 - ptr)).reshape(-1, 1)
             lr = LogisticRegression(C=1e10, solver="lbfgs")
@@ -118,10 +126,11 @@ def main():
         p_raw = d["y_prob_mean"].to_numpy(dtype=float)
         prevalence = float(y.mean())
 
-        # 无信息基线:恒预测原始患病率的 Brier(用于判断 raw 相对基线的改善)
+        # No-information baseline: Brier of always predicting the raw prevalence
+        # (used to judge how much raw improves over the baseline)
         brier_const = brier(y, np.full_like(y, prevalence))
 
-        # 重校准(CV,无泄露)
+        # Recalibration (CV, no leakage)
         p_platt = cv_recalibrate(y, p_raw, "sigmoid")
         p_iso = cv_recalibrate(y, p_raw, "isotonic")
 

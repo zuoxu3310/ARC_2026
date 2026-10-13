@@ -1,14 +1,14 @@
 #!/usr/bin/env python
-"""把 5x10 同协议地板线(floor=lesion_volume+age_at_stroke 两列)整理成对外汇总。
+"""Summarise the same-protocol 5x10 floor baseline (floor = lesion_volume + age_at_stroke) for reporting.
 
-读 results/tuning/nested_tuning_floor.csv(由 s5_nested_tuning_regression.py 在
-重复分层 5x10 折下跑出, 与主表同协议, 非留一)。对每个模型取 default / tuned 的
-Pearson r, 再用 5x10 的 ceiling(JHU_fine RandomForest: default 0.704 / tuned 0.7152)
-做分母, 算 floor 占 ceiling 的百分比。
+Reads results/tuning/nested_tuning_floor.csv (produced by s5_nested_tuning_regression.py under
+repeated stratified 5x10 CV, same protocol as the main table, not leave-one-out). For each model,
+takes the default / tuned Pearson r and divides by the 5x10 ceiling (JHU_fine RandomForest:
+default 0.704 / tuned 0.7152) to express the floor as a percentage of the ceiling.
 
-输出 results/summary/floor_5x10.csv:
-  每行一个模型, 列出 floor default/tuned r 及其各自相对两个 ceiling 口径的百分比;
-  外加一行 BEST_FLOOR(跨所有模型取最高的 floor r)。
+Output results/summary/floor_5x10.csv:
+  one row per model with the floor default/tuned r and its percentage of each of the two
+  ceiling definitions; plus one BEST_FLOOR row (highest floor r across all models).
 """
 from __future__ import annotations
 import os
@@ -18,10 +18,10 @@ PKG = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SRC = os.path.join(PKG, "results", "tuning", "nested_tuning_floor.csv")
 OUT = os.path.join(PKG, "results", "summary", "floor_5x10.csv")
 
-# 5x10 同协议 ceiling(分母): JHU_fine RandomForest, 与主表口径一致。
+# 5x10 same-protocol ceiling (denominator): JHU_fine RandomForest, as in the main table.
 CEIL_DEFAULT = 0.704      # RF default, 5x10, JHU
 CEIL_TUNED = 0.7152       # RF tuned,   5x10, JHU
-# 备查: arterial_coarse RF 5x10 default 0.6852 / tuned 0.6954
+# For reference: arterial_coarse RF 5x10 default 0.6852 / tuned 0.6954
 
 
 def pct(num, den):
@@ -35,7 +35,7 @@ def main():
         model = r["model"]
         d_r = r.get("default_r")
         t_r = r.get("tuned_r")
-        # floor 该模型的最佳 r(default vs tuned 取大; TabPFN 无 tuned)
+        # best floor r for this model (max of default and tuned; TabPFN has no tuned run)
         cands = [v for v in (d_r, t_r) if pd.notna(v)]
         best_r = max(cands)
         rows.append({
@@ -43,14 +43,14 @@ def main():
             "floor_default_r": d_r,
             "floor_tuned_r": t_r if pd.notna(t_r) else "",
             "floor_best_r": round(best_r, 4),
-            # 占 5x10 ceiling 的百分比(同协议)
+            # percentage of the 5x10 ceiling (same protocol)
             "pct_of_ceiling_RFdefault_0.704": pct(best_r, CEIL_DEFAULT),
             "pct_of_ceiling_RFtuned_0.7152": pct(best_r, CEIL_TUNED),
         })
 
     out = pd.DataFrame(rows)
 
-    # BEST_FLOOR 汇总行: 跨所有模型最高 floor r
+    # BEST_FLOOR summary row: highest floor r across all models
     best_idx = out["floor_best_r"].idxmax()
     best_model = out.loc[best_idx, "model"]
     best_floor = out.loc[best_idx, "floor_best_r"]

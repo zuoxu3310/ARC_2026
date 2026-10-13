@@ -2,34 +2,42 @@
 """
 s3b_classification_nested_dump.py
 
-在 s3_classification_benchmark.py 基础上扩展, 服务 EXPERIMENT_PLAN Block3/Block4:
-  1) 泄露安全的【嵌套调参】: GridSearchCV 套在 imblearn Pipeline 里, SMOTE 只在内层折 fit,
-     外层 = 重复分层 5x10 折(只评估、不在外层调参), 对每个模型给出 tuned vs default。
-  2) 逐人外层测试折【预测概率 dump】到 results/runs/, 给后续 DeLong / 校准用。
-     细 JHU 与粗动脉各 dump 一份, 文件名带模型与粒度。
-  3) 患者层【bootstrap CI】(非 ±std): 对外层折外预测做按患者重抽样, 报 95% CI。
+Extends s3_classification_benchmark.py with:
+  1) Leakage-safe nested tuning: GridSearchCV wraps an imblearn Pipeline, so SMOTE is fit
+     only on inner training folds. Outer loop = repeated stratified 5x10 CV (evaluation
+     only, no tuning on the outer folds). Each model is reported as tuned vs default.
+  2) Per-patient outer-test-fold predicted probabilities dumped to results/runs/ for
+     downstream DeLong tests / calibration. One dump each for fine JHU and coarse
+     arterial features; file names include model and granularity.
+  3) Patient-level bootstrap CI (instead of +/- std): resample patients from the outer
+     out-of-fold predictions and report 95% CIs.
 
-== 防泄露设计(铁律) ==
-  整条 [scaler -> SMOTE -> clf] 封成一个 imblearn Pipeline。
-  - tuned: GridSearchCV(pipe, inner=StratifiedKFold) 只在【外层训练折】上拟合。
-           内层 CV 把外层训练折再切, SMOTE/scaler 只在每个内层【训练子折】fit_transform,
-           内层验证子折与外层测试折都从不参与 SMOTE/scaler/选超参。
-  - default: 同一条 Pipeline, 默认超参, 同样只在外层训练折 fit。
-  外层测试折 X[te] 永远只过 transform/predict, 绝不 fit 任何 scaler/SMOTE/搜参。
-  => SMOTE 在【内层训练子折(tuned)/外层训练折(default)】fit, 测试折零接触。
+== Leakage guard ==
+  The whole [scaler -> SMOTE -> clf] chain is a single imblearn Pipeline.
+  - tuned:   GridSearchCV(pipe, inner=StratifiedKFold) is fit on the outer training fold only.
+             The inner CV re-splits the outer training fold; SMOTE/scaler are fit_transform'ed
+             on each inner training sub-fold only. Inner validation sub-folds and the outer
+             test fold never take part in SMOTE/scaler fitting or hyperparameter selection.
+  - default: the same Pipeline with default hyperparameters, also fit on the outer training
+             fold only.
+  The outer test fold X[te] only goes through transform/predict; it never fits any
+  scaler/SMOTE/search.
+  => SMOTE is fit on the inner training sub-fold (tuned) / outer training fold (default);
+     the test fold is never touched.
 
 == TabPFN ==
-  本脚本只跑可调/默认树与线性模型。TabPFN 按项目铁律【单独进程、不调参、硬超时】,
-  用 s3_classification_benchmark.py --models TabPFN 单独起, 不在此处同进程跑(防假死)。
-  本脚本若被传入 TabPFN 会直接拒绝并提示正确跑法。
+  This script runs only the tunable/default tree and linear models. TabPFN is run in a
+  separate process, untuned, with a hard timeout, via
+  s3_classification_benchmark.py --models TabPFN, not in this process (avoids hangs).
+  If TabPFN is passed to this script, it refuses and prints the correct command.
 
-运行(SMOKE, 只 RF 小网格):
-  PYENV_VERSION=data-analysis python src/s3b_classification_nested_dump.py \
+Usage (smoke test, RF only, small grid):
+  python src/s3b_classification_nested_dump.py \
       --table data/jhu156_features_merged.tsv --name JHU_fine \
       --models RandomForest --smoke
 
-运行(全量示例):
-  PYENV_VERSION=data-analysis python src/s3b_classification_nested_dump.py \
+Usage (full example):
+  python src/s3b_classification_nested_dump.py \
       --table data/jhu156_features_merged.tsv --name JHU_fine \
       --models RandomForest XGBoost LightGBM SVM_rbf LogReg
 """
@@ -51,19 +59,19 @@ from imblearn.over_sampling import SMOTE
 
 PKG = Path(__file__).resolve().parents[1]
 SEED = 42
-THRESHOLD = 50            # severe = wab_aq <= 50 (Teghipco 口径)
+THRESHOLD = 50            # severe = wab_aq <= 50 (Teghipco et al. definition)
 SPARSE_DROP_FRAC = 0.10
 N_SPLITS, N_REPEATS = 5, 10
-INNER_SPLITS = 3          # 内层调参 CV 折数
-N_BOOT = 2000             # 患者层 bootstrap 次数
-# 本脚本负责的【可调】分类器(TabPFN 不在此处, 见 docstring)
+INNER_SPLITS = 3          # inner tuning CV folds
+N_BOOT = 2000             # patient-level bootstrap resamples
+# tunable classifiers handled by this script (TabPFN excluded, see docstring)
 TUNABLE_MODELS = ["RandomForest", "XGBoost", "LightGBM", "SVM_rbf", "LogReg"]
 
 
-# ---------- 估计器 + 内层网格 ----------
+# ---------- estimators + inner grids ----------
 def base_estimator(name):
     if name == "LogReg":
-        # 线性(正则): 调 C 与正则类型(l1 需 saga)
+        # regularised linear model: tune C and penalty type (l1 needs saga)
         return LogisticRegression(max_iter=5000, random_state=SEED, solver="saga")
     if name == "SVM_rbf":
         return SVC(kernel="rbf", probability=True, random_state=SEED)
@@ -83,7 +91,7 @@ def base_estimator(name):
 
 
 def param_grid(name, smoke=False):
-    """返回作用在 Pipeline 上的网格(键带 'clf__' 前缀)。smoke=极小网格只为跑通。"""
+    """Return the grid applied to the Pipeline (keys prefixed with 'clf__'). smoke = tiny grid, only to verify the run."""
     if name == "RandomForest":
         if smoke:
             return {"clf__max_depth": [None, 8], "clf__min_samples_leaf": [1, 4]}
@@ -119,13 +127,13 @@ def param_grid(name, smoke=False):
 
 
 def build_pipe(name):
-    # 折内 scaler -> SMOTE -> clf。整条作为一个估计器, GridSearchCV 在其上搜参。
+    # in-fold scaler -> SMOTE -> clf as one estimator; GridSearchCV searches over it.
     return ImbPipeline([("scaler", StandardScaler()),
                         ("smote", SMOTE(random_state=SEED)),
                         ("clf", base_estimator(name))])
 
 
-# ---------- 数据 ----------
+# ---------- data ----------
 def load_xy(table_path):
     df = pd.read_csv(table_path, sep="\t", index_col="participant_id")
     df = df.dropna(subset=["wab_aq"]).fillna(0)
@@ -138,7 +146,7 @@ def load_xy(table_path):
     return feat.values, y, wab, list(df.index), list(feat.columns)
 
 
-# ---------- 指标 ----------
+# ---------- metrics ----------
 def metrics_for(y_true, y_pred, y_prob):
     return {
         "balanced_acc": balanced_accuracy_score(y_true, y_pred),
@@ -151,8 +159,8 @@ def metrics_for(y_true, y_pred, y_prob):
 
 
 def bootstrap_ci(y_true, y_pred, y_prob, n_boot=N_BOOT, seed=SEED):
-    """患者层 bootstrap: 对【人】重抽样算各指标 95% CI。
-    y_*: 形状 (n_patients,), 取每人折外预测(repeat 平均后的均值预测/概率)。"""
+    """Patient-level bootstrap: resample patients to get a 95% CI for each metric.
+    y_*: shape (n_patients,), each patient's out-of-fold prediction (prediction/probability averaged over repeats)."""
     rng = np.random.default_rng(seed)
     n = len(y_true)
     keys = ["balanced_acc", "auc", "f1_severe", "mcc", "prec_severe", "rec_severe"]
@@ -160,7 +168,7 @@ def bootstrap_ci(y_true, y_pred, y_prob, n_boot=N_BOOT, seed=SEED):
     for _ in range(n_boot):
         idx = rng.integers(0, n, n)
         yt, yp, ypr = y_true[idx], y_pred[idx], y_prob[idx]
-        if len(np.unique(yt)) < 2:    # 重抽样退化成单类, 跳过该次
+        if len(np.unique(yt)) < 2:    # resample has a single class; skip it
             continue
         m = metrics_for(yt, yp, ypr)
         for k in keys:
@@ -176,18 +184,19 @@ def bootstrap_ci(y_true, y_pred, y_prob, n_boot=N_BOOT, seed=SEED):
     return out
 
 
-# ---------- 外层 CV(tuned 或 default), 含逐人 dump ----------
+# ---------- outer CV (tuned or default), with per-patient dump ----------
 def run_outer(name, X, y, wab, pids, tuned, smoke=False, verbose=True):
-    """外层重复分层 5x10。tuned=True 时每个外层训练折跑内层 GridSearchCV;
-    default=False 用默认超参。返回 (per_repeat_metrics, long_records, agg_per_patient)。
-    long_records: 逐人逐外层折一行(repeat,fold,prob) —— dump 原料。"""
+    """Outer repeated stratified 5x10 CV. tuned=True runs an inner GridSearchCV on each
+    outer training fold; tuned=False uses default hyperparameters.
+    Returns (per_repeat_metrics, long_records, agg_per_patient).
+    long_records: one row per patient per outer fold (repeat, fold, prob) - input for the dump."""
     rskf = RepeatedStratifiedKFold(n_splits=N_SPLITS, n_repeats=N_REPEATS, random_state=SEED)
     keys = ["balanced_acc", "auc", "f1_severe", "mcc", "prec_severe", "rec_severe"]
     per_repeat = {k: [] for k in keys}
     n = len(y)
     oof_pred = np.full(n, -1)
     oof_prob = np.zeros(n)
-    # 累加每人在所有 repeat 的概率/预测, 供患者层聚合 + bootstrap
+    # accumulate each patient's probability/prediction over all repeats (patient-level aggregation + bootstrap)
     prob_sum = np.zeros(n); pred_sum = np.zeros(n); seen = np.zeros(n)
     long_records = []
     n_total = N_SPLITS * N_REPEATS
@@ -200,10 +209,10 @@ def run_outer(name, X, y, wab, pids, tuned, smoke=False, verbose=True):
             inner = StratifiedKFold(n_splits=INNER_SPLITS, shuffle=True, random_state=SEED)
             gs = GridSearchCV(pipe, param_grid(name, smoke=smoke),
                               scoring="balanced_accuracy", cv=inner, n_jobs=-1, refit=True)
-            gs.fit(X[tr], y[tr])          # 只见外层训练折; 内层再切, SMOTE 只在内层训练子折 fit
+            gs.fit(X[tr], y[tr])          # outer training fold only; inner CV re-splits it, SMOTE fit on inner training sub-folds only
             est = gs.best_estimator_
         else:
-            pipe.fit(X[tr], y[tr])        # 默认超参, 只见外层训练折
+            pipe.fit(X[tr], y[tr])        # default hyperparameters, outer training fold only
             est = pipe
 
         pr = est.predict(X[te])
@@ -225,13 +234,13 @@ def run_outer(name, X, y, wab, pids, tuned, smoke=False, verbose=True):
         if verbose and (i + 1) % 5 == 0:
             print(f"    [{name}/{'tuned' if tuned else 'default'}] "
                   f"fold {i+1}/{n_total}", flush=True)
-        if (i + 1) % N_SPLITS == 0:       # 一个 repeat 跑满, 算这轮指标
+        if (i + 1) % N_SPLITS == 0:       # one repeat complete: compute its metrics
             m = metrics_for(y, oof_pred, oof_prob)
             for k in keys:
                 per_repeat[k].append(m[k])
             oof_pred = np.full(n, -1); oof_prob = np.zeros(n)
 
-    # 患者层聚合: 每人取所有 repeat 的平均概率, 阈值 0.5 定标签
+    # patient-level aggregation: mean probability over all repeats, label by threshold 0.5
     mean_prob = prob_sum / np.maximum(seen, 1)
     mean_pred = (mean_prob >= 0.5).astype(int)
     agg = {"y_true": y.copy(), "y_prob": mean_prob, "y_pred": mean_pred}
@@ -241,7 +250,8 @@ def run_outer(name, X, y, wab, pids, tuned, smoke=False, verbose=True):
 
 # ---------- dump ----------
 def dump_probs(long_records, agg, pids, name, gran, tuned, out_dir):
-    """写两份: (1) 逐人逐折长表(给 DeLong, 每人多行); (2) 按 repeat 平均的宽表(每人一行)。"""
+    """Write two files: (1) long table, one row per patient per fold (for DeLong, several rows per patient);
+    (2) wide table averaged over repeats (one row per patient)."""
     out_dir.mkdir(parents=True, exist_ok=True)
     tag = "tuned" if tuned else "default"
     long_df = pd.DataFrame(long_records)[
@@ -268,23 +278,23 @@ def fmt_ci(point, ci):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--table", required=True)
-    ap.add_argument("--name", required=True, help="粒度标签, 如 JHU_fine / arterial_coarse")
+    ap.add_argument("--name", required=True, help="granularity label, e.g. JHU_fine / arterial_coarse")
     ap.add_argument("--models", nargs="*", default=TUNABLE_MODELS)
-    ap.add_argument("--smoke", action="store_true", help="极小网格, 只为跑通验证, 不全量")
-    ap.add_argument("--no-default", action="store_true", help="跳过 default, 只跑 tuned")
-    ap.add_argument("--no-tuned", action="store_true", help="跳过 tuned, 只跑 default")
+    ap.add_argument("--smoke", action="store_true", help="tiny grid, only to verify the run (not a full run)")
+    ap.add_argument("--no-default", action="store_true", help="skip default, run tuned only")
+    ap.add_argument("--no-tuned", action="store_true", help="skip tuned, run default only")
     args = ap.parse_args()
 
     if any(m == "TabPFN" for m in args.models):
         raise SystemExit(
-            "TabPFN 不在本脚本跑(防同进程假死)。请单独:\n"
-            "  perl -e 'alarm 1800; exec @ARGV' env PYENV_VERSION=data-analysis "
-            "python src/s3_classification_benchmark.py --table <表> --name <名> --models TabPFN")
+            "TabPFN is not run by this script (avoids in-process hangs). Run it separately:\n"
+            "  perl -e 'alarm 1800; exec @ARGV' "
+            "python src/s3_classification_benchmark.py --table <table> --name <name> --models TabPFN")
 
     table = PKG / args.table if not Path(args.table).is_absolute() else Path(args.table)
     X, y, wab, pids, feat = load_xy(table)
     n_sev = int(y.sum())
-    print(f"[{args.name}] n={len(y)}  severe(<=≤{THRESHOLD})={n_sev} "
+    print(f"[{args.name}] n={len(y)}  severe(<={THRESHOLD})={n_sev} "
           f"({n_sev/len(y):.0%})  features={X.shape[1]}  models={args.models}  "
           f"smoke={args.smoke}", flush=True)
 
@@ -292,7 +302,7 @@ def main():
     rows = []
     for name in args.models:
         if name not in TUNABLE_MODELS:
-            print(f"  跳过 {name}: 不在可调集合 {TUNABLE_MODELS}", flush=True)
+            print(f"  skip {name}: not in tunable set {TUNABLE_MODELS}", flush=True)
             continue
         for tuned in ([False] if args.no_tuned else
                       [True] if args.no_default else [False, True]):
@@ -318,7 +328,7 @@ def main():
             print(f"      dump agg  -> {agg_path.relative_to(PKG)}", flush=True)
 
     if not rows:
-        print("无可跑模型, 退出。", flush=True)
+        print("No runnable models; exiting.", flush=True)
         return
     new = pd.DataFrame(rows).drop(columns=["balanced_acc_sort"])
     summ = PKG / "results" / "summary" / f"classification_nested_{args.name}.csv"

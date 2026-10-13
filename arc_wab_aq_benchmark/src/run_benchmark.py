@@ -1,10 +1,10 @@
 """Entry point: run the ARC WAB-AQ regression benchmark.
 
-Usage (from anywhere, with the data-analysis env):
-    PYENV_VERSION=data-analysis python src/run_benchmark.py
-    PYENV_VERSION=data-analysis python src/run_benchmark.py --models SVR_rbf TabPFN
-    PYENV_VERSION=data-analysis python src/run_benchmark.py --protocol repeated_kfold
-    PYENV_VERSION=data-analysis python src/run_benchmark.py --dry-run
+Usage (from anywhere):
+    python src/run_benchmark.py
+    python src/run_benchmark.py --models SVR_rbf TabPFN
+    python src/run_benchmark.py --protocol repeated_kfold
+    python src/run_benchmark.py --dry-run
 
 Outputs:
     results/runs/<model>_loo_predictions.csv   per-patient y_true/y_pred

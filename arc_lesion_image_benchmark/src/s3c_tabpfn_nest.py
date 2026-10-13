@@ -1,15 +1,19 @@
 #!/usr/bin/env python
 """
-s3c_tabpfn_nest.py — 严重度【severe 二分类】TabPFN 的 n_estimators 扫描。
+s3c_tabpfn_nest.py - n_estimators sweep for TabPFN on the severe binary classification task.
 
-目的: 验证之前 s3 主榜里 TabPFN(默认 n_estimators=8)的分数对集成遍数敏不敏感。
-若 n=2..8 精度基本平 -> 之前默认 8 的数稳, 且可改用 n=2 提速; 若明显变 -> 需更新报告。
+Purpose: check whether the TabPFN score in the s3 main benchmark (default n_estimators=8)
+is sensitive to the number of ensemble members. If accuracy is roughly flat for n=2..8,
+the default-8 result is stable and n=2 can be used for speed; if it changes noticeably,
+the reported results need updating.
 
-协议与 s3 完全一致: severe = wab_aq <= 50; 折内 scaler -> SMOTE -> TabPFN(n_estimators=n);
-分层重复 5x10; 每 repeat 汇总折外预测算指标, 跨 repeat 均值±std。只跑 TabPFN(单进程)。
+Protocol identical to s3: severe = wab_aq <= 50; in-fold scaler -> SMOTE ->
+TabPFN(n_estimators=n); repeated stratified 5x10 CV; metrics are computed on the pooled
+out-of-fold predictions of each repeat, then mean +/- std across repeats.
+Runs TabPFN only (single process).
 
-运行:
-  perl -e 'alarm shift; exec @ARGV' 5400 env PYENV_VERSION=data-analysis python \
+Usage:
+  perl -e 'alarm shift; exec @ARGV' 5400 python \
       src/s3c_tabpfn_nest.py --table data/ArterialAtlas156_features_merged.tsv \
       --name arterial_coarse --nest 2 3 4 5 6 8
 """

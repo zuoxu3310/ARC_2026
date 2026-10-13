@@ -20,8 +20,14 @@ def main():
     grid = commands.add_parser("grid", help="train the 20-repeat crossed cohort/model grid")
     grid.add_argument("--tabpfn", action="store_true", help="include TabPFN in separate processes (full paper grid)")
     commands.add_parser("fixed", help="train RF/XGBoost on the full pool, then rescore and resample")
+    commands.add_parser("comparisons", help="cross-population ordering and fixed-test training experiment")
+    commands.add_parser("mrri", help="download and analyze the separate MRRI behavioral cohort")
+    compare = commands.add_parser("compare", help="compare your recorded predictions using the input contract")
+    compare.add_argument("--spec", required=True)
+    compare.add_argument("--output", required=True)
+    commands.add_parser("protocol-demo", help="run ARC/MRRI worked comparisons from completed prediction banks")
     commands.add_parser("statistics", help="variance decomposition and model-set sensitivity")
-    commands.add_parser("figures", help="generate four figures, fixed-prediction tables, and full-grid benchmark tables")
+    commands.add_parser("figures", help="generate manuscript figures and tables from completed analyses")
     args = parser.parse_args()
     if args.stage == "prepare":
         run(ROOT / "scripts/prepare_data.py", *(["--extra-atlases"] if args.extra_atlases else []))
@@ -37,6 +43,18 @@ def main():
         run(SRC / "s31_frozen_prediction_control.py", "train")
         run(SRC / "s31_frozen_prediction_control.py", "analyze")
         run(SRC / "s31_resampling_tie_fix.py")
+    elif args.stage == "comparisons":
+        run(SRC / "s32_comparison_population.py")
+        for stage in ["smoke", "train", "analyze"]:
+            run(SRC / "s33_fixed_test_training.py", "--stage", stage)
+    elif args.stage == "mrri":
+        run(ROOT / "scripts/prepare_mrri.py")
+        for stage in ["train", "analyze"]:
+            run(SRC / "s34_mrri_replication.py", "--stage", stage)
+    elif args.stage == "compare":
+        run(SRC / "s35_compare_predictions.py", "--spec", args.spec, "--output", args.output)
+    elif args.stage == "protocol-demo":
+        run(SRC / "s36_protocol_examples.py", "--install-table")
     elif args.stage == "statistics":
         for task in ["regression", "classification"]:
             run(SRC / "s19_variance_decomp.py", "--task", task)
@@ -47,6 +65,9 @@ def main():
     else:
         run(SRC / "fig_manuscript_rewrite_20260922.py")
         run(ROOT / "scripts/build_manuscript_tables.py")
+        if all((SRC.parent / ("results/" + folder + "/factorial_contrasts.csv")).exists()
+               for folder in ["fixed_test_training_2026-10-02", "mrri_replication_2026-10-02"]):
+            run(SRC / "fig_comparison_upgrade_20261002.py")
         if all((SRC.parent / f"results/runs/grid_{task}_TabPFN.csv").exists()
                for task in ["regression", "classification"]):
             run(ROOT / "scripts/build_benchmark_tables.py")

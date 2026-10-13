@@ -1,0 +1,16 @@
+component	chosen_implementation	status	source
+population	All 173 public subjects; no intersection with JHU	Exact public release; not original 231-person study	https://doi.org/10.6084/m9.figshare.23579943.v1
+input	17x22x19 image entries, independent per-subject [-1,1] scaling	Matched public data and source normalization	datasets/arc_ds004884/teghipco_figshare/DLAphasiaSeverityARCSubset.mat; outputs/targeted-replication-feasibility-2026-10-03/raw/deep-main.txt
+labels	wabClassi; wabClass2i stratification	Exact public labels; no current AQ substitution	Public MAT file
+network	Unmodified generate_model from vgg2.py at bdfefe165dcef18729054a8b142949cd5836ec4e	Exact released network class	https://github.com/alexteghipco/volDNN
+CNN hyperparameters	depth 3, dropout .8, weight decay .001, learning rate .0001	Author README recommendation for preprint; not final fold-wise winners	https://github.com/alexteghipco/volDNN#for-replication-of-preprint-results
+evaluation	6 outer folds x 20 repeats; new frozen shared seeds	Same design, unavailable historical assignments	https://www.nature.com/articles/s43856-024-00541-8
+CNN training roles	70 percent fitting, 30 percent validation within development	Same role proportions	https://www.nature.com/articles/s43856-024-00541-8
+CNN stopping	800 epoch maximum, minimum validation loss; OR of published criteria after validation F1 reaches .7	Formal supplement preferred over older script defaults; OR interpretation declared	research/03_paper_notes/teghipco_2024_supplement/43856_2024_541_MOESM2_ESM.pdf
+CNN loss weight	positive=N_train/N_positive, negative=1	Matches actual public code; not symmetric inverse-frequency weighting	outputs/targeted-replication-feasibility-2026-10-03/raw/deep-main.txt
+SVM search	300 sampled C/scale pairs on declared paper ranges; 8 inner folds; mean weighted hinge loss	Ranges and folds matched; original exact random-search count/loss call unavailable	https://www.nature.com/articles/s43856-024-00541-8
+SVM implementation	sklearn/libsvm, precomputed exact linear and RBF kernels	Reimplementation; not original unpublished MATLAB script	https://www.mathworks.com/help/stats/fitcsvm.html
+classical fitting	Full outer development pool; extra RF/SVM CNN-fitting-patient sensitivity fits	Main follows paper role; sensitivity isolates final fitting membership	https://www.nature.com/articles/s43856-024-00541-8
+other baselines	Existing project model settings, raw same images, inverse-frequency weights	New information-matched comparisons; not tuned performance upper bounds	arc_lesion_image_benchmark/src/s18_crossed_grid.py
+TabPFN	Excluded from this full-image experiment; existing tabular benchmark preserved	Installed ordinary path supports 2000 features, and subsamples above 500; input here has 7106	Installed tabpfn/classifier.py lines 309-310
+published output agreement	Historical F1/BA shown only as context	Different public population and assignments prevent numeric identity requirement	Original Supplementary Data Set 2

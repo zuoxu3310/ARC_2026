@@ -1,0 +1,112 @@
+Public copy of the frozen protocol: process-management sentences are removed. The SHA256 in the run's frozen.json refers to the authors' archived original.
+
+Same-input evaluation of the publicly released Teghipco CNN
+Frozen before new outer-test predictions; 2026-10-03
+
+Question and scope
+Using the author's released images and labels, measure the incremental predictive
+performance of the author-recommended CNN relative to conventional classifiers.
+This replaces neither the existing paper benchmark nor the completed pilot.
+It evaluates the public 173-person dataset, not the original 231-person historical
+experiment. Historical fold identities, final fold-wise hyperparameters and some
+participants are unavailable. No result will be forced to match the published score.
+The earlier 172-person pilot has already been inspected; this is a prospectively
+frozen extension of exploratory work, not an untouched confirmatory dataset.
+
+Inputs
+Use every one of the 173 subjects in DLAphasiaSeverityARCSubset.mat, in sorted ID
+order. Preserve author wabClassi labels; stratify on author wabClass2i. Use all
+17*22*19=7106 image entries per subject. Independently scale each subject to [-1,1],
+as in the author code. CNN sees the 3D array; conventional models see the same
+array reshaped to a vector, with an exact round-trip check. No JHU table, age,
+lesion volume covariate, feature selection, PCA, oversampling or SMOTE is added.
+Retain all released images, including five with no lesion-value-4 entry. Do not
+copy private-dataset exclusion row numbers into a different public matrix.
+
+Partitions and replication
+Seed 2026100307 generates 20 outer seeds and 120 fit seeds before training.
+Six stratified outer folds in every repeat; all models share test IDs.
+Eight stratified inner folds in the development pool for SVM parameter search.
+CNN final training uses a stratified 70/30 development split, retaining validation
+only for checkpoint selection/stopping, as in the paper. Conventional classifiers
+fit on the complete outer development pool, as in the paper's classical-model
+protocol. Their greater number of weight-fitting patients is explicit, not hidden.
+Additional RF/SVM predictions fitted on the CNN's exact weight-training IDs are
+reported separately to check sensitivity to that difference. SVM hyperparameters
+for these sensitivity fits remain those selected within the development pool;
+they are not claimed to have used only the smaller fitting subset for all choices.
+No fold or seed may be dropped or rerolled after inspecting its result.
+
+CNN
+Import the unmodified author vgg2.py (commit bdfefe165dcef18729054a8b142949cd5836ec4e).
+Fix architecture=3, dropout=0.8, AdamW weight_decay=0.001, learning_rate=0.0001,
+following the author's README recommendation for the preprint. This is not the
+final paper's 72-setting nested optimization. Use 800 epochs maximum, batch 128,
+AdamW amsgrad, cosine warm restarts T0=50/Tmult=2/eta_min=1e-10, minimum-validation-
+loss checkpoint and published stopping criteria. The previously verified pilot
+trainer is imported without editing its source. Its interpretation of the paper's
+stopping list is OR, gated on a validation F1 of at least 0.7 having been reached.
+The public script's extra validation-F1 checkpoint ceiling is not applied.
+Positive BCE weight is N_train/N_positive, matching the actual author code.
+No automatic CPU fallback. Save each epoch curve, selected weights and fit metadata.
+
+Traditional comparisons
+SVM_linear and SVM_rbf: independent searches, 300 candidate pairs drawn without
+replacement from the paper's 300-bin logarithmic C=[1e-3,2e4] and kernel-scale=
+[1e-3,1e3] ranges. Candidate lists are frozen for every outer fold before fitting.
+The paper does not disclose the number of random combinations actually evaluated;
+300 candidates is our declared budget, not a claim about the original run.
+Use training-derived inverse class weights, eight-fold mean weighted hinge loss
+for selection, fixed zero-margin decision threshold, no probability calibration.
+Use sklearn/libsvm instead of MATLAB; this is a documented implementation-level
+re-evaluation, not the unavailable original MATLAB execution. The article does
+not expose its exact validation-loss call; weighted hinge loss follows its stated
+training objective and is a declared choice. MATLAB KernelScale maps to K=xz/s^2
+for linear and exp(-||x-z||^2/s^2) for RBF. Kernels depend only on image values,
+with no learned transform or global label use; search receives development data only.
+
+Other classifiers retain the existing project benchmark's model settings:
+RF: 500 trees; XGBoost: 400 trees, depth 3, rate .05, row/column fractions .8;
+LightGBM: 400 trees, 15 leaves, rate .05, row/column fractions .8;
+Logistic regression: C=1, max_iter=5000; MLP: hidden (64,32), max_iter=2000.
+No feature-wise standardization beyond the author's per-image normalization.
+Replace the earlier SMOTE preprocessing by training-derived inverse-frequency
+class/sample weights, following the source study's class-balance principle.
+The numerical weighting differs from the source CNN's positive-only N/N+ code;
+do not claim loss functions or tuning budgets are identical. These are whole-
+procedure comparisons with identical information and test conditions.
+RF, XGBoost, LightGBM, logistic regression and MLP are fixed baselines, not tuned
+upper bounds. Preserve convergence warnings and failed fits; no silent replacement.
+An additional SVM_selected chooses linear/RBF using inner validation loss only.
+A majority-class reference is separate and excluded from learned-model claims.
+The installed TabPFN implementation limits the ordinary full-input path to 2000
+features and internally subsamples columns above 500; excluding it here avoids
+silently changing the requested 7106-input comparison. Its original paper benchmark
+is retained. This run is not described as a rerun of all seven tabular learners.
+
+Scoring and interpretation
+Primary metric: severe-class F1; secondary: balanced accuracy, AUROC, precision,
+recall and confusion counts. Probability threshold=.5; SVM threshold=0 on margins.
+Concatenate all six test folds before computing each repeat's score, matching the
+paper. Report all 20 repeats, their mean and sample SD, not the best repeat/fold.
+Predeclared primary incremental contrast: CNN minus RF on the same image inputs;
+source-comparison anchors: CNN minus linear/RBF/inner-selected SVM. Other models
+are secondary. Report all model differences, without picking the best test result
+and declaring that family universally superior.
+Paired patient-cluster bootstrap resamples the same patient IDs across methods and
+all repeats, averaging per-repeat metric differences; intervals are conditional on
+saved fitted models and do not replace a full retraining bootstrap. No equivalence
+or noninferiority claim without a separately justified margin. Historical scores
+are context, never paired observations. Performance agreement does not prove every
+historical implementation detail, and disagreement will trigger investigation.
+
+Execution and verification
+Freeze input, source, plan, partitions and candidate-list hashes before fitting.
+The entire 20x6 CNN run is planned irrespective of intermediate scores.
+Run CNN and CPU baselines as separate guarded workers; no concurrent GPU workers.
+Each worker emits heartbeats, preserves partial outputs, and has a 24-hour wall
+limit plus a 10-minute no-progress watchdog. Complete units can resume without
+rerolling; attempts and failures must remain in the ledger. Results are scored
+only after model/checkpoint/parameters have been chosen without test data.
+Verify membership, input identity, per-repeat coverage, checkpoint reload predictions,
+independent metric arithmetic, and kernel equivalence before accepting results.

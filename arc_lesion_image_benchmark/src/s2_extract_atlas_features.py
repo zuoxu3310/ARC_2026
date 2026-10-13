@@ -2,18 +2,22 @@
 """
 s2_extract_atlas_features.py
 
-复刻 Gibson lesion2artery.py 的方法(每区比例损伤 = 病灶∩区 体素数 / 区体素数),
-但把图谱参数化, 默认换成 jhu156 细图谱(189 区)。向量化(np.bincount), 比原逐区循环快。
+Reimplements the method of Gibson's lesion2artery.py (per-region proportional damage =
+voxels in lesion AND region / voxels in region), but with the atlas as a parameter,
+defaulting to the fine jhu156 atlas (189 regions). Vectorised with np.bincount, faster
+than the original per-region loop.
 
-唯一相对 Gibson 0.71 表改变的是图谱粒度(33 动脉区 -> 189 解剖区);
-提取方法、清洗(留给 harness)、留一法协议都保持一致 -> 公平对比。
+Relative to the Gibson 0.71 table, the only change is atlas granularity
+(33 arterial regions -> 189 anatomical regions); extraction method, cleaning (left to
+the harness) and leave-one-out protocol are unchanged -> fair comparison.
 
-产出(写进本包 data/):
-  features_<atlas>.tsv          participant_id, lesion_volume, <每区比例损伤>
-  <atlas>_features_merged.tsv   上表 + age_at_stroke + wab_aq (内连 merged_artery, 226 行)
-                                列序与 merged_artery 同构, 可直接喂现有 benchmark harness
+Outputs (written to this package's data/):
+  features_<atlas>.tsv          participant_id, lesion_volume, <per-region proportional damage>
+  <atlas>_features_merged.tsv   the table above + age_at_stroke + wab_aq (inner join with
+                                merged_artery, 226 rows); same column layout as
+                                merged_artery, so it can be fed directly to the benchmark harness
 
-运行: PYENV_VERSION=data-analysis python src/s2_extract_atlas_features.py [--atlas jhu156|ArterialAtlas156]
+Run: python src/s2_extract_atlas_features.py [--atlas jhu156|ArterialAtlas156]
 """
 from __future__ import annotations
 import argparse, csv
@@ -30,7 +34,7 @@ LABELS_TSV = (PKG.parent / "datasets" / "arc_ds004884" /
 
 
 def load_labels(txt_path: Path) -> dict[int, str]:
-    """jhu156.txt / ArterialAtlas156.txt: 'idx|abbrev|full|...'; 复刻 Gibson 命名 'idx_abbrev'。"""
+    """jhu156.txt / ArterialAtlas156.txt: 'idx|abbrev|full|...'; uses Gibson's 'idx_abbrev' naming."""
     out = {}
     for line in txt_path.read_text().splitlines():
         if not line.strip():
@@ -81,7 +85,7 @@ def main() -> int:
     feat_path = PKG / "data" / f"features_{args.atlas}.tsv"
     feats.to_csv(feat_path, sep="\t", index=False)
 
-    # 接上 age + wab_aq (来自 merged_artery), 内连 -> 226 行建模表
+    # Attach age + wab_aq (from merged_artery), inner join -> 226-row modelling table
     lab = pd.read_csv(LABELS_TSV, sep="\t")[["participant_id", "age_at_stroke", "wab_aq"]]
     merged = feats.merge(lab, on="participant_id", how="inner")
     merged_path = PKG / "data" / f"{args.atlas}_features_merged.tsv"
@@ -89,7 +93,7 @@ def main() -> int:
 
     print(f"features  -> {feat_path.relative_to(PKG)}  ({feats.shape[0]} x {feats.shape[1]})")
     print(f"merged    -> {merged_path.relative_to(PKG)}  ({merged.shape[0]} x {merged.shape[1]})")
-    print(f"建模行数(有 wab_aq): {merged.shape[0]}; 特征列(含 lesion_volume+age): {merged.shape[1]-2}")
+    print(f"modelling rows (with wab_aq): {merged.shape[0]}; feature columns (incl. lesion_volume+age): {merged.shape[1]-2}")
     return 0
 
 

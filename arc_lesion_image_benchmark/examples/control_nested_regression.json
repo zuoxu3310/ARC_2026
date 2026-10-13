@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "objective": "r",
+  "inner_folds": 3,
+  "feature_policy": "frozen_dictionary",
+  "reference": {
+    "model": "RandomForest",
+    "mode": "nested",
+    "parameter_grid": [{}, {"max_depth": 8, "min_samples_leaf": 2}, {"max_features": 0.5, "min_samples_leaf": 3}]
+  },
+  "candidate": {
+    "model": "XGBoost",
+    "mode": "nested",
+    "parameter_grid": [{}, {"max_depth": 3, "learning_rate": 0.03}, {"max_depth": 6, "subsample": 0.8}]
+  }
+}

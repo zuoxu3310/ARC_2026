@@ -1,14 +1,14 @@
 """Dedicated, observable TabPFN leave-one-out runner.
 
 Why separate: instantiating a fresh TabPFNRegressor for all 226 LOO folds was
-unstable on this machine (repeated thread-pool creation -> intermittent 0%-CPU
+unstable in testing (repeated thread-pool creation -> intermittent 0%-CPU
 hang). Here we instantiate the regressor ONCE and re-fit it per fold. This is
 still leakage-free: a fresh StandardScaler is fit on each training fold, and
 TabPFN.fit() fully replaces its stored training context each call (it never
 sees the held-out patient). Progress is flushed per chunk so a stall is visible.
 
 Run with a hard timeout so it can never zombie:
-    PYENV_VERSION=data-analysis python src/run_tabpfn_loo.py
+    python src/run_tabpfn_loo.py
 """
 import os
 import sys

@@ -2,21 +2,26 @@
 """
 teghipco_same_subset.py
 
-"便宜表格 vs 昂贵 CNN" 的同数据硬证据。
-在 Teghipco 公开 173 子集里能对上我们表的 172 人上, 用我们的可解释表格特征
-(细 JHU 189 区 / 粗动脉 32 区, 都加 lesion_volume + age) 跑 RandomForest + LogReg + SVM,
-折内 StandardScaler -> SMOTE -> clf 的 imblearn Pipeline (防泄露), 重复分层 5x10 折,
-对标 Teghipco 2024 CNN 报告值 (balanced-acc 0.77, F1(severe) 0.70, precision 0.59)。
+Same-data comparison: inexpensive tabular features vs. an expensive CNN.
+On the 172 participants of the public Teghipco 173-participant subset that match our
+table, run RandomForest + LogReg + SVM on our interpretable tabular features
+(fine JHU 189 regions / coarse arterial 32 regions, each plus lesion_volume + age),
+with an in-fold StandardScaler -> SMOTE -> clf imblearn Pipeline (leakage-safe) and
+repeated stratified 5x10-fold CV, and compare against the Teghipco 2024 CNN reported
+values (balanced-acc 0.77, F1(severe) 0.70, precision 0.59).
 
-标签: 默认用 .mat 自带 wabClassi (Teghipco 训 CNN 时的真值, 0=non-severe / 1=severe),
-      另跑一套我们表 wab_aq<50 作对照 (两者一致率 99.4%)。
+Labels: by default the wabClassi field shipped in the .mat file (the ground truth used
+        to train the Teghipco CNN, 0=non-severe / 1=severe); a second run uses our
+        table's wab_aq < 50 as a check (the two labels agree for 99.4% of participants).
 
-防泄露 (CLAUDE.md 铁律): StandardScaler / SMOTE 只在每折训练子集 fit。
-  - build_pipe() 里 ImbPipeline([scaler, smote, clf]); pipe.fit(X[tr]) 只见训练折。
-  - bootstrap CI 在折外 (OOF) 预测上按患者 resample, 不重训, 不碰测试折信息泄露。
+Leakage guard: StandardScaler / SMOTE are fit on the training fold only.
+  - build_pipe() returns ImbPipeline([scaler, smote, clf]); pipe.fit(X[tr]) sees only
+    the training fold.
+  - Bootstrap CIs resample patients from out-of-fold (OOF) predictions without
+    refitting, so no test-fold information leaks.
 
-运行 (单数据集单标签):
-  PYENV_VERSION=data-analysis python teghipco_same_subset.py
+Run:
+  python teghipco_same_subset.py
 """
 from __future__ import annotations
 from pathlib import Path
@@ -45,12 +50,12 @@ TABLES = {
 OUT = PKG / "results/summary/teghipco_same_subset.csv"
 
 SEED = 42
-SPARSE_DROP_FRAC = 0.10        # 稀疏脑区列丢弃阈值, 与主分类口径一致
+SPARSE_DROP_FRAC = 0.10        # drop threshold for sparse region columns; same as the main classification analysis
 N_SPLITS, N_REPEATS = 5, 10
 N_BOOT = 2000
 MODELS = ["RandomForest", "LogReg", "SVM_rbf"]
 
-# Teghipco 2024 (Comm Med) CNN 报告值 (source data 口径, 见 ARC_competitor_matrix)
+# Teghipco 2024 (Commun Med) CNN reported values (taken from the paper's source data)
 TEGHIPCO_CNN = {"balanced_acc": 0.77, "f1_severe": 0.70, "prec_severe": 0.59}
 
 
@@ -73,7 +78,7 @@ def estimator(name):
 
 
 def build_pipe(name):
-    # 折内: scaler -> SMOTE -> clf, 全部只在训练折 fit (防泄露)
+    # In-fold: scaler -> SMOTE -> clf, all fit on the training fold only (leakage guard)
     return ImbPipeline([("scaler", StandardScaler()),
                         ("smote", SMOTE(random_state=SEED)),
                         ("clf", estimator(name))])
@@ -91,7 +96,8 @@ def metrics_for(y_true, y_pred, y_prob):
 
 
 def patient_bootstrap_ci(y_true, oof_pred, oof_prob, n_boot=N_BOOT, seed=SEED):
-    """患者级 bootstrap: 在折外预测上按患者重采样, 给 95% CI。不重训模型。"""
+    """Patient-level bootstrap: resample patients over out-of-fold predictions to get 95% CIs.
+    Models are not refit."""
     rng = np.random.default_rng(seed)
     n = len(y_true)
     keys = ["balanced_acc", "auc", "f1_severe", "prec_severe", "rec_severe"]
@@ -108,12 +114,13 @@ def patient_bootstrap_ci(y_true, oof_pred, oof_prob, n_boot=N_BOOT, seed=SEED):
 
 
 def run_model(name, X, y):
-    """重复分层 5x10 折, 每 repeat 汇总折外预测算指标 -> 跨 repeat 均值±std;
-    并保留最后一个 repeat 的 OOF 预测做患者级 bootstrap CI 的代表 (口径稳定)。"""
+    """Repeated stratified 5x10-fold CV: metrics are computed on the pooled out-of-fold
+    predictions of each repeat -> mean +/- std across repeats. The patient-level
+    bootstrap CI uses each patient's OOF probability averaged across repeats (stable)."""
     rskf = RepeatedStratifiedKFold(n_splits=N_SPLITS, n_repeats=N_REPEATS, random_state=SEED)
     per_repeat = {k: [] for k in ["balanced_acc", "auc", "f1_severe", "mcc", "prec_severe", "rec_severe"]}
     oof_pred = np.full(len(y), -1); oof_prob = np.zeros(len(y))
-    # 累加每个患者跨 repeat 的平均预测概率, 用于稳定的患者级 bootstrap
+    # Accumulate each patient's predictions across repeats for a stable patient-level bootstrap
     prob_sum = np.zeros(len(y)); pred_sum = np.zeros(len(y))
     n_done_repeats = 0
     for i, (tr, te) in enumerate(rskf.split(X, y)):
@@ -132,7 +139,7 @@ def run_model(name, X, y):
             n_done_repeats += 1
             oof_pred = np.full(len(y), -1); oof_prob = np.zeros(len(y))
             print(f"    [{name}] repeat {n_done_repeats}/{N_REPEATS} done", flush=True)
-    # 跨 repeat 平均后的患者级 OOF (概率取均值, 预测按 0.5 阈值)
+    # Patient-level OOF averaged across repeats (mean probability; prediction thresholded at 0.5)
     mean_prob = prob_sum / n_done_repeats
     mean_pred = (mean_prob >= 0.5).astype(int)
     ci = patient_bootstrap_ci(y, mean_pred, mean_prob)
@@ -143,7 +150,7 @@ def run_model(name, X, y):
 def load_xy(table_path, label_df, label_mode):
     df = pd.read_csv(table_path, sep="\t")
     df = df.dropna(subset=["wab_aq"])
-    # 只保留 Teghipco 子集里能对上的患者
+    # Keep only patients that match the Teghipco subset
     merged = label_df.merge(df, on="participant_id", how="inner")
     merged = merged.fillna(0)
     if label_mode == "mat_wabClassi":
@@ -193,8 +200,8 @@ def main():
     print(f"\nwrote {OUT}")
     print(f"\nTeghipco CNN anchor: balanced_acc={TEGHIPCO_CNN['balanced_acc']}, "
           f"F1(severe)={TEGHIPCO_CNN['f1_severe']}, precision(severe)={TEGHIPCO_CNN['prec_severe']}")
-    # 落一份简明对照
-    print("\n=== vs Teghipco CNN (point-estimate anchor; 非其精确 CV split) ===")
+    # Brief side-by-side comparison
+    print("\n=== vs Teghipco CNN (point-estimate anchor; not their exact CV split) ===")
     for _, r in out.iterrows():
         cover_ba = "covers" if _ci_covers(r["balanced_acc_ci95"], TEGHIPCO_CNN["balanced_acc"]) else "no"
         cover_f1 = "covers" if _ci_covers(r["f1_severe_ci95"], TEGHIPCO_CNN["f1_severe"]) else "no"

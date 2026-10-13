@@ -1,40 +1,52 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-s16_type_floor_significance.py — 类型【二分类】"两列地板 vs 复杂模型"配对 + 等价检验。
+s16_type_floor_significance.py -- aphasia-type (binary) tasks: paired and equivalence tests of
+the two-column floor model vs the complex model.
 
-缺口: type_significance.csv 只覆盖 细vs粗 / 调vs默认 / RF vs LogReg;
-从没把【floor(病灶量+年龄)≈复杂(JHU 189 细区)】这条主线断言做正式配对/等价检验。
-本脚本补上, 把"类型任务上便宜地板追平贵特征"焊死。
+Motivation: type_significance.csv only covers fine vs coarse / tuned vs default / RF vs LogReg.
+The claim that floor (lesion volume + age) ~= complex (189 JHU fine regions) had no formal
+paired / equivalence test. This script provides one for the statement that, on the type
+tasks, the cheap floor matches the expensive regional features.
 
-特征关系(已核, 见 data/jhu156_features_merged.tsv 与 floor_volage_features.tsv):
+Feature relation (checked against data/jhu156_features_merged.tsv and floor_volage_features.tsv):
   floor   = {lesion_volume, age_at_stroke}
-  complex = floor + 189 个 JHU 细区  →  floor 严格【嵌套】于 complex。
-  故"floor vs complex"= 标准的【嵌套特征增量检验】: 在量+年龄之上加 189 区有没有增益。
-  复杂模型在信息上不可能比 floor 差; 若加 189 区无显著增益 + TOST 判等价
-  → 位置信息在病灶负荷之上无贡献, 对上主线"病灶负荷主导"。
+  complex = floor + 189 JHU fine regions  ->  floor is strictly nested in complex.
+  So "floor vs complex" is a standard nested-feature increment test: do the 189 regions add
+  anything on top of volume + age? In information terms the complex model cannot be worse
+  than floor; if the 189 regions give no significant gain and TOST declares equivalence
+  -> location adds no information beyond lesion load, consistent with the main finding that
+  lesion load dominates.
 
-对比(每任务 fluent / broca, A=complex, B=floor, Δ=A-B=区域特征的增量, 正=复杂更好):
-  1) best_vs_best         : 复杂最佳模型 vs 地板最佳模型(各按 balanced_acc 自动选, 头条)
-  2) LogReg_increment     : JHU_fine/LogReg       vs floor_volage/LogReg
+Contrasts (per task fluent / broca; A=complex, B=floor, delta=A-B = increment from the
+regional features, positive = complex better):
+  1) best_vs_best          : best complex model vs best floor model (each auto-selected by
+                             balanced_acc; headline contrast)
+  2) LogReg_increment      : JHU_fine/LogReg       vs floor_volage/LogReg
   3) RandomForest_increment: JHU_fine/RandomForest vs floor_volage/RandomForest
-  4) SVM_increment        : JHU_fine/SVM_rbf       vs floor_volage/SVM_rbf
-  (2-4 同算法变特征, 隔离"区域特征增量", 防 best-vs-best 被指 cherry-pick)
+  4) SVM_increment         : JHU_fine/SVM_rbf      vs floor_volage/SVM_rbf
+  (2-4 keep the algorithm fixed and change only the features, isolating the regional-feature
+  increment so that best-vs-best cannot be read as cherry-picking)
 
-指标与检验(与 s13 / s6 / equivalence_power 完全一致):
-  - AUC 差: 成对(correlated)DeLong(1988 + Sun&Xu 2014 快速算法)给原始 p。
-  - balanced-acc 差: 患者级配对 bootstrap(对【人】重抽样, 阈值 0.5)给双尾 p + 95%CI。
-  - TOST 等价: 对 AUC 与 balanced-acc 各做, 可忽略带 ±0.05;
-      用 bootstrap SE → 两个单侧 z 检验, p_TOST=max(p_low,p_up); 同时报 90%CI 落带内判定。
-      bound 依据: AUC 0.05 = 诊断意义改善的常规阈; bACC 0.05 = "小"效应 0.10 的一半。
-  - MDE: alpha=0.05 双尾 + power=0.8 的最小可检出效应 = 2.8016*SE, 比 |Δ|。
+Metrics and tests (identical to s13 / s6 / equivalence_power):
+  - AUC difference: paired (correlated) DeLong (1988, Sun & Xu 2014 fast algorithm), raw p.
+  - balanced-acc difference: patient-level paired bootstrap (resampling patients, threshold
+    0.5), two-sided p + 95% CI.
+  - TOST equivalence: for both AUC and balanced-acc, negligible band +/-0.05;
+      bootstrap SE -> two one-sided z tests, p_TOST = max(p_low, p_up); also reports whether
+      the 90% CI lies inside the band.
+      Bound rationale: AUC 0.05 = conventional threshold for a meaningful diagnostic
+      improvement; bACC 0.05 = half of a "small" effect of 0.10.
+  - MDE: minimum detectable effect at alpha=0.05 two-sided, power=0.8 = 2.8016*SE,
+    compared with |delta|.
 
-读: results/runs/type_{task}_{feat}_{model}_oof.csv  (s11 产, 每人池化折外: prob_pos)
-    results/summary/type_{task}_{feat}.csv            (自动选各端最佳模型)
-写: results/summary/type_floor_significance.csv  (配对检验: 原始 p, 多重比较校正由主控统一做)
-    results/summary/type_floor_equivalence.csv   (TOST 等价 + MDE)
+Reads:  results/runs/type_{task}_{feat}_{model}_oof.csv  (from s11; pooled out-of-fold prob_pos per patient)
+        results/summary/type_{task}_{feat}.csv            (used to auto-select the best model on each side)
+Writes: results/summary/type_floor_significance.csv  (paired tests: raw p, plus Holm / FDR-BH
+                                                      adjusted p within each metric)
+        results/summary/type_floor_equivalence.csv   (TOST equivalence + MDE)
 
-运行: PYENV_VERSION=data-analysis python src/s16_type_floor_significance.py
+Run: python src/s16_type_floor_significance.py
 """
 import os
 import numpy as np
@@ -52,10 +64,10 @@ FLOOR_FEAT = "floor_volage"
 TASKS = ["fluent", "broca"]
 MATCHED_MODELS = ["LogReg", "RandomForest", "SVM_rbf"]
 
-B_BOOT = 10000            # 与 equivalence_power.py 一致
+B_BOOT = 10000            # same as equivalence_power.py
 SEED = 20260605
-THRESHOLD = 0.5           # 与 s11 患者层聚合一致 (y_pred = prob>=0.5)
-BOUND = 0.05              # 等价可忽略带 (AUC 与 bACC 同 0.05)
+THRESHOLD = 0.5           # same as the patient-level aggregation in s11 (y_pred = prob>=0.5)
+BOUND = 0.05              # equivalence (negligible) band, 0.05 for both AUC and bACC
 ALPHA = 0.05
 POWER = 0.80
 Z_ALPHA = stats.norm.ppf(1 - ALPHA / 2)
@@ -67,7 +79,7 @@ BACC_NOTE = ("equiv bound +/-0.05 balanced-acc: half of a Cohen-small 0.10 "
              "gap, below any practically meaningful accuracy difference")
 
 
-# ---------------- DeLong 快速算法 (Sun & Xu 2014) ----------------
+# ---------------- DeLong fast algorithm (Sun & Xu 2014) ----------------
 def _compute_midrank(x):
     J = np.argsort(x); Z = x[J]; N = len(x); T = np.zeros(N, dtype=float); i = 0
     while i < N:
@@ -98,7 +110,7 @@ def _fast_delong(preds_sorted_t, m):
 
 
 def delong_paired_test(y_true, p1, p2):
-    """成对 DeLong: 正类=1。返回 auc1, auc2, diff(=auc1-auc2), z, p(双尾)。"""
+    """Paired DeLong, positive class = 1. Returns auc1, auc2, diff (= auc1-auc2), z, p (two-sided)."""
     y_true = np.asarray(y_true, dtype=int)
     order = (-y_true).argsort(kind="mergesort")
     m = int(y_true.sum())
@@ -112,9 +124,9 @@ def delong_paired_test(y_true, p1, p2):
     return dict(auc1=a1, auc2=a2, diff=diff, z=float(z), p=float(p))
 
 
-# ---------------- 快速指标 ----------------
+# ---------------- Fast metrics ----------------
 def fast_auc(y, s):
-    """Mann-Whitney U AUC (与 equivalence_power 一致, ties 用 rankdata)。"""
+    """Mann-Whitney U AUC (same as equivalence_power; ties handled by rankdata)."""
     y = np.asarray(y, int)
     n1 = int(y.sum()); n0 = len(y) - n1
     if n1 == 0 or n0 == 0:
@@ -124,7 +136,7 @@ def fast_auc(y, s):
 
 
 def fast_bacc(y, pred):
-    """二分 balanced-acc = 0.5*(TPR+TNR), 与 sklearn 一致(无 adjusted)。"""
+    """Binary balanced-acc = 0.5*(TPR+TNR), same as sklearn (not adjusted)."""
     y = np.asarray(y, int); pred = np.asarray(pred, int)
     P = y == 1; N = y == 0
     nP = int(P.sum()); nN = int(N.sum())
@@ -145,7 +157,7 @@ def tost(delta, se, bound):
     return max(p_low, p_up)
 
 
-# ---------------- 载入 + 对齐 ----------------
+# ---------------- Load + align ----------------
 def load_oof(task, feat, model):
     f = os.path.join(RUNS_DIR, f"type_{task}_{feat}_{model}_oof.csv")
     d = pd.read_csv(f).set_index("participant_id").sort_index()
@@ -161,7 +173,8 @@ def align(task, featA, modelA, featB, modelB):
 
 
 def best_model(task, feat, metric="balanced_acc"):
-    """从 type_{task}_{feat}.csv 选 metric 最高且有 OOF 文件的模型(metric ∈ balanced_acc/auc)。"""
+    """From type_{task}_{feat}.csv pick the model with the highest metric that has an OOF file
+    (metric is balanced_acc or auc)."""
     df = pd.read_csv(os.path.join(SUM_DIR, f"type_{task}_{feat}.csv"))
     df["_m"] = df[metric].astype(str).str.split("±").str[0].astype(float)
     df = df.sort_values("_m", ascending=False)
@@ -174,18 +187,18 @@ def best_model(task, feat, metric="balanced_acc"):
     raise RuntimeError(f"no OOF-backed model for {task}/{feat}")
 
 
-# ---------------- 单对比 ----------------
+# ---------------- Single contrast ----------------
 def run_contrast(task, name, featA, modelA, featB, modelB, labA, labB):
     y, pa, pb, n = align(task, featA, modelA, featB, modelB)
     rng = np.random.default_rng(SEED)
 
-    # 点估计
-    d = delong_paired_test(y, pa, pb)              # AUC 原始 p (analytic)
+    # Point estimates
+    d = delong_paired_test(y, pa, pb)              # AUC raw p (analytic)
     auc_a, auc_b, dauc = d["auc1"], d["auc2"], d["diff"]
     preda = (pa >= THRESHOLD).astype(int); predb = (pb >= THRESHOLD).astype(int)
     bacc_a = fast_bacc(y, preda); bacc_b = fast_bacc(y, predb); dbacc = bacc_a - bacc_b
 
-    # 患者级配对 bootstrap: 同一组重抽样下同时算 AUC 差与 bACC 差
+    # Patient-level paired bootstrap: AUC and bACC differences on the same resamples
     auc_diffs = np.empty(B_BOOT); bacc_diffs = np.empty(B_BOOT)
     auc_diffs[:] = np.nan; bacc_diffs[:] = np.nan
     for b in range(B_BOOT):
@@ -269,12 +282,13 @@ def main():
                 s, e = run_contrast(task, nm, fa, ma, fb, mb, la, lb)
                 sig_all.extend(s); eq_all.extend(e)
             except FileNotFoundError as exc:
-                print(f"  [skip] {task}/{nm}: 缺 OOF ({exc})")
+                print(f"  [skip] {task}/{nm}: missing OOF ({exc})")
 
     sig = pd.DataFrame(sig_all)
     eq = pd.DataFrame(eq_all)
 
-    # 多重比较校正(每个指标族内: Holm + FDR-BH), 与 severity significance_combined.csv 同口径
+    # Multiple-comparison correction within each metric family (Holm + FDR-BH),
+    # same protocol as the severity significance_combined.csv
     from statsmodels.stats.multitest import multipletests
     sig["p_holm"] = np.nan; sig["p_fdr_bh"] = np.nan; sig["sig_holm_0.05"] = False
     for metric, grp in sig.groupby("metric"):

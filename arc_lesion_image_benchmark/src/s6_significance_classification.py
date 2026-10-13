@@ -3,28 +3,34 @@
 """
 s6_significance_classification.py
 =================================
-配对显著性检验(分类任务)。复用已有逐人 dump,不重训。
+Paired significance tests (classification task). Reuses the existing per-patient dumps; no retraining.
 
-主对比(都是"病灶单模态天花板"叙事的关键零假设):
-  1) 细 vs 粗   : RandomForest, JHU_fine vs arterial_coarse(同一批病人)
+Main contrasts (key null hypotheses for the "lesion-only performance ceiling" argument):
+  1) fine vs coarse   : RandomForest, JHU_fine vs arterial_coarse (same patients)
   2) tuned vs default : RandomForest, JHU_fine
-次要:
+Secondary:
   3) RandomForest vs XGBoost : JHU_fine, default
 
-指标与检验:
-  - AUC 差: 成对 DeLong 检验(同一批病人 → 用各自概率算 ROC 协方差矩阵)。
-  - balanced-acc 差: 患者级配对 bootstrap(对【人】重抽样 B=2000)→ 差值分布 → 95%CI + 双尾 p。
-    阈值固定 0.5(与 dump 脚本患者层聚合一致, line 236: mean_pred=(mean_prob>=0.5))。
+Metrics and tests:
+  - AUC difference: paired DeLong test (same patients -> ROC covariance matrix from each model's
+    probabilities).
+  - balanced-accuracy difference: patient-level paired bootstrap (resample patients, B=2000)
+    -> distribution of differences -> 95% CI + two-sided p.
+    Threshold fixed at 0.5 (consistent with the patient-level aggregation in the dump script:
+    mean_pred = (mean_prob >= 0.5)).
 
-铁律:
-  - 用【患者级】预测(每人一个值: _patient_probs.csv 的 y_prob_mean),不灌水重复CV相关性。
-  - 同一对比先按 participant_id 对齐两列预测,再做成对检验。
-  - 只输出每个对比的【原始 p + 差 + 95%CI】,不在此做多重比较校正(主控统一 Holm/FDR)。
+Rules:
+  - Use patient-level predictions (one value per patient: y_prob_mean in _patient_probs.csv), so
+    correlated repeated-CV predictions do not inflate the effective sample size.
+  - For each contrast, align the two prediction columns on participant_id before the paired test.
+  - Report only the raw p + difference + 95% CI per contrast; no multiple-comparison correction
+    here (Holm/FDR is applied jointly downstream).
 
-DeLong 实现来源(自写): DeLong, DeLong & Clarke-Pearson (1988) Biometrics 44:837-845
-的非参数协方差估计,配合 Sun & Xu (2014) IEEE SPL 21:1389-1393 的 O(N log N)
-midrank/structural-component 快速算法。两条 ROC 共享同一批样本(同一批病人、同一 y),
-故用成对(correlated) DeLong: var(AUC1-AUC2)=S11+S22-2*S12, z=(AUC1-AUC2)/sqrt(var)。
+DeLong implementation (own code): nonparametric covariance estimator of DeLong, DeLong &
+Clarke-Pearson (1988) Biometrics 44:837-845, with the O(N log N) midrank /
+structural-component algorithm of Sun & Xu (2014) IEEE SPL 21:1389-1393. Both ROC curves share
+the same samples (same patients, same y), so the paired (correlated) DeLong test is used:
+var(AUC1-AUC2) = S11 + S22 - 2*S12, z = (AUC1-AUC2) / sqrt(var).
 """
 
 import os
@@ -42,11 +48,11 @@ OUT_CSV = os.path.join(OUT_DIR, "significance_classification.csv")
 
 B_BOOT = 2000
 SEED = 20260604
-THRESHOLD = 0.5  # 与 dump 患者层聚合一致
+THRESHOLD = 0.5  # matches the patient-level aggregation in the dump
 
 
 # ============================================================================
-# DeLong 快速算法 (Sun & Xu 2014 的 structural components)
+# Fast DeLong algorithm (Sun & Xu 2014 structural components)
 # ============================================================================
 def _compute_midrank(x):
     """midrank with ties averaged (Sun & Xu 2014, Algorithm)."""
@@ -68,9 +74,10 @@ def _compute_midrank(x):
 
 def _fast_delong(predictions_sorted_transposed, label_1_count):
     """
-    Sun & Xu (2014) 快速 DeLong: 返回 (aucs, covariance_matrix)。
-    predictions_sorted_transposed: shape (k, n) 已按 [正类样本在前, 负类样本在后] 排列,
-      行 = k 个分类器的分数。label_1_count = 正类(severe=1)样本数 m。
+    Fast DeLong (Sun & Xu 2014): returns (aucs, covariance_matrix).
+    predictions_sorted_transposed: shape (k, n), columns ordered [positive samples first,
+      negative samples after]; rows = scores of the k classifiers.
+      label_1_count = number of positive (severe=1) samples m.
     """
     m = label_1_count
     n = predictions_sorted_transposed.shape[1] - m
@@ -100,12 +107,12 @@ def _fast_delong(predictions_sorted_transposed, label_1_count):
 
 def delong_paired_test(y_true, prob1, prob2):
     """
-    成对(correlated) DeLong 检验: 两条 ROC 共享同一批样本(同一批病人、同一 y)。
-    返回 dict: auc1, auc2, diff(=auc1-auc2), se_diff, z, p(双尾)。
-    约定正类 = 1 (severe)。
+    Paired (correlated) DeLong test: both ROC curves share the same samples (same patients, same y).
+    Returns dict: auc1, auc2, diff (= auc1 - auc2), se_diff, z, p (two-sided).
+    Positive class = 1 (severe).
     """
     y_true = np.asarray(y_true, dtype=int)
-    order = (-y_true).argsort(kind="mergesort")  # 正类(1)在前, 负类(0)在后; 稳定排序
+    order = (-y_true).argsort(kind="mergesort")  # positives (1) first, negatives (0) after; stable sort
     label_1_count = int(y_true.sum())
     preds = np.vstack((np.asarray(prob1, dtype=float)[order],
                        np.asarray(prob2, dtype=float)[order]))
@@ -114,7 +121,7 @@ def delong_paired_test(y_true, prob1, prob2):
     var = cov[0, 0] + cov[1, 1] - 2.0 * cov[0, 1]
     diff = auc1 - auc2
     if var <= 0:
-        # 数值上两条 ROC 几乎重合 -> 退化, p=1
+        # the two ROC curves are numerically identical -> degenerate, p=1
         return dict(auc1=auc1, auc2=auc2, diff=diff, se_diff=0.0, z=0.0, p=1.0)
     se = np.sqrt(var)
     z = diff / se
@@ -124,15 +131,16 @@ def delong_paired_test(y_true, prob1, prob2):
 
 
 # ============================================================================
-# 患者级配对 bootstrap (balanced-acc 差)
+# Patient-level paired bootstrap (balanced-accuracy difference)
 # ============================================================================
 def paired_bootstrap_bacc(y_true, prob1, prob2, threshold=THRESHOLD,
                           B=B_BOOT, seed=SEED):
     """
-    对【人】重抽样 B 次 -> 每次重算两边 balanced-acc -> 差值分布 -> 95%CI + 双尾 p。
-    阈值固定(默认 0.5)。点估计用全样本(非 bootstrap 均值)。
-    双尾 p: 用差值分布越过 0 的比例 (Davison & Hinkley 经验 p), p=2*min(P(d<=0),P(d>=0)),
-    含 +1 平滑避免 p=0。
+    Resample patients B times -> recompute both balanced accuracies each time -> distribution of
+    differences -> 95% CI + two-sided p.
+    Fixed threshold (default 0.5). The point estimate uses the full sample (not the bootstrap mean).
+    Two-sided p: share of the difference distribution on each side of 0 (Davison & Hinkley
+    empirical p), p = 2*min(P(d<=0), P(d>=0)), with +1 smoothing to avoid p=0.
     """
     y_true = np.asarray(y_true, dtype=int)
     p1 = np.asarray(prob1, dtype=float)
@@ -168,7 +176,7 @@ def paired_bootstrap_bacc(y_true, prob1, prob2, threshold=THRESHOLD,
 
 
 # ============================================================================
-# 载入 + 对齐
+# Loading + alignment
 # ============================================================================
 def load_patient(granularity, model, config):
     f = os.path.join(RUNS_DIR, f"clf_{granularity}_{model}_{config}_patient_probs.csv")
@@ -177,7 +185,7 @@ def load_patient(granularity, model, config):
 
 
 def align_two(spec_a, spec_b):
-    """spec = (granularity, model, config, label). 按 participant_id 对齐。"""
+    """spec = (granularity, model, config, label). Align on participant_id."""
     ga, ma, ca, la = spec_a
     gb, mb, cb, lb = spec_b
     a = load_patient(ga, ma, ca).rename(columns={"y_prob_mean": "prob_a", "y_true": "yt_a"})
@@ -218,7 +226,7 @@ def run_contrast(name, spec_a, spec_b):
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     contrasts = [
-        # 1) 细 vs 粗 (RandomForest)
+        # 1) fine vs coarse (RandomForest)
         ("fine_vs_coarse",
          ("JHU_fine", "RandomForest", "default", "JHU_fine/RF/default"),
          ("arterial_coarse", "RandomForest", "default", "arterial_coarse/RF/default")),
@@ -226,7 +234,7 @@ def main():
         ("tuned_vs_default",
          ("JHU_fine", "RandomForest", "tuned", "JHU_fine/RF/tuned"),
          ("JHU_fine", "RandomForest", "default", "JHU_fine/RF/default")),
-        # 3) RF vs XGB (JHU, default) — 次要
+        # 3) RF vs XGB (JHU, default) - secondary
         ("RF_vs_XGB",
          ("JHU_fine", "RandomForest", "default", "JHU_fine/RF/default"),
          ("JHU_fine", "XGBoost", "default", "JHU_fine/XGB/default")),

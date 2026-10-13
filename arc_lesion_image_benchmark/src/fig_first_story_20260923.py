@@ -23,8 +23,8 @@ from pypdf import PdfReader
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / 'arc_lesion_image_benchmark/results/frozen_prediction_control_2026-09-22'
-OUT = ROOT / 'outputs/first-figure-redesign-2026-09-23'
-W, H = 7.16 * 72, 438
+OUT = ROOT / 'outputs/hourglass-revision-2026-10-04/first-figure'
+W, H = 7.16 * 72, 524
 INK = '#172D3B'
 MUTED = '#596D7A'
 BLUE = '#286D92'
@@ -131,7 +131,7 @@ class Scene:
 
     def drawio(self,path,renderer):
         mx=ET.Element('mxfile',host='app.diagrams.net',type='device',version='24.7.17')
-        diagram=ET.SubElement(mx,'diagram',name='Figure 1 - fixed-prediction story',id='arc-story')
+        diagram=ET.SubElement(mx,'diagram',name='Figure 1 - controlled comparison protocol',id='arc-story')
         model=ET.SubElement(diagram,'mxGraphModel',dx=str(W),dy=str(H),grid='0',
                             guides='1',tooltips='1',connect='1',arrows='1',fold='1',
                             page='1',pageScale='1',pageWidth=str(W),pageHeight=str(H),
@@ -202,7 +202,7 @@ def main():
                        [.7123329981819245,.6254958458139793,.7558832622776003],atol=1e-12,rtol=0)
     s=Scene()
     s.text(12,14,'Same predictions. Different patients. Different scores.',12.8,bold=True,width=W-24)
-    s.text(12,33,'A controlled test of performance attribution in ARC aphasia prediction',9,color=MUTED,width=W-24)
+    s.text(12,33,'A reference benchmark and protocol for testing additional predictive value',9,color=MUTED,width=W-24)
 
     # (a) The scientific conflict, condensed into one small causal schematic.
     s.rect(12,48,W-24,47,fill='#F6F8FA',radius=4)
@@ -268,19 +268,26 @@ def main():
     s.text(12,345,'* Secondary published-list analysis. RF scores are mean Pearson r across 20 repeats.',8.2,color=MUTED,width=W-24)
     s.text(W/2,357,'(b) Score shifts with fixed individual predictions',8,font='Times New Roman',align='center')
 
-    # (c) Locate the control inside the complete argument without recreating a methods checklist.
+    # (c) Make the response executable: each card has a controlled change and an output.
     s.line([(12,368),(W-12,368)],color=LINE,lw=.65)
+    s.text(12,382,'From a score difference to a controlled method comparison',10.5,bold=True,width=W-24)
     for j,(x,title,detail) in enumerate([
-        (12,'Cohort variation is larger','Than model variation in the\ntested competitive set'),
-        (181,'Scores shift without refitting','Fixed predictions produce\nboth score gains and losses'),
-        (350,'Composition helps explain','The main FLAIR and task-fMRI\nscore losses'),
+        (12,'Measure scoring change','Freeze predictions\nFull → eligible scoring\nOutput: selection contrast'),
+        (181,'Control training change','Keep test folds fixed\nFull → eligible training\nOutput: training contrast'),
+        (350,'Test the method gain','Same eligible patients\nShared training + test folds\nOutput: paired difference'),
     ]):
-        s.ellipse(x,379,16,16,fill=[BLUE_LIGHT,'#EEF5F3','#FBF2EB'][j],stroke='none')
-        s.text(x+8,387,str(j+1),9.4,color=[BLUE,GREEN,RUST][j],bold=True,align='center')
-        s.text(x+23,380,title,9.3,bold=True,width=139)
-        s.text(x+23,397,detail,8.5,color=MUTED,width=139)
-    s.text(W/2,413,'(c) The argument across the study',8,font='Times New Roman',align='center')
-    s.text(W/2,430,'A higher score alone does not identify a method gain.',10.5,bold=True,align='center',width=W-24)
+        color=[BLUE,GREEN,RUST][j]
+        s.rect(x,396,153,69,fill=[BLUE_LIGHT,'#EEF5F3','#FBF2EB'][j],stroke=LINE,lw=.6,radius=4)
+        s.ellipse(x+7,403,13,13,fill=color,stroke='none')
+        s.text(x+13.5,409.5,str(j+1),8.7,color='white',bold=True,align='center')
+        s.text(x+25,409,title,8.7,bold=True,width=123)
+        s.text(x+9,439,detail,8.8,color=INK,width=137)
+        if j<2:
+            s.line([(x+155,431),(x+165,431)],color=MUTED,lw=.8,arrow=True)
+    s.text(W/2,478,'Report paired uncertainty and eligible-patient coverage.',10,bold=True,align='center',width=W-24)
+    s.rect(12,490,W-24,21,fill=FAINT,radius=3)
+    s.text(W/2,500,'150 reference entries: patient IDs + folds + predictions → reuse or refit',9,bold=True,align='center',width=W-34)
+    s.text(W/2,518,'(c) Population controls, a shared-patient test, and reusable references',8,font='Times New Roman',align='center',width=W-24)
     qa=s.save(OUT/'study_design')
     qa.update({'data':records,'patient_order':'Ascending WAB-AQ, then participant_id; same order in all four grids',
                'tile_counts':{k:int(members[k].sum()) for k in subsets},
@@ -289,7 +296,8 @@ def main():
                'source_script':str(Path(__file__).relative_to(ROOT)),
                'raster_generation_used':False,
                'drawio_export':'Native shapes, text, patient-tile groups and connectors; no embedded raster image',
-               'claim':'Individual predictions are unchanged; eligibility-based scoring sets move aggregate scores.'})
+               'claim':'Fixed predictions reveal score changes; the protocol measures population contrasts and tests methods on shared eligible patients.',
+               'protocol_outputs':['scoring contrast','training contrast','paired method difference','uncertainty','eligibility coverage']})
     page=PdfReader(OUT/'study_design.pdf').pages[0]
     assert abs(float(page.mediabox.width)/72-7.16)<1e-5
     qa['files_sha256']={f'study_design.{ext}':hashlib.sha256((OUT/f'study_design.{ext}').read_bytes()).hexdigest()
@@ -299,6 +307,7 @@ def main():
     (OUT/'scene.json').write_text(json.dumps({'width_pt':W,'height_pt':H,'cells':s.cells,'edges':s.edges,'groups':s.groups},indent=2)+'\n')
     if args.install:
         import shutil
+        (ROOT/'paper/images').mkdir(parents=True, exist_ok=True)
         for ext in ['pdf','svg','png','drawio']:
             shutil.copy2(OUT/f'study_design.{ext}',ROOT/f'paper/images/study_design.{ext}')
     print(json.dumps({'figure':str(OUT/'study_design.pdf'),'installed':args.install,**qa},indent=2))

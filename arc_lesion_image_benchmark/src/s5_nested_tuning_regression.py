@@ -1,44 +1,53 @@
 #!/usr/bin/env python
 """
-s5_nested_tuning_regression.py  ——  泄露安全的【回归】嵌套调参 vs 默认对照
-(对应 EXPERIMENT_PLAN.md Block 3 / Anti-claim A1:调到最好也破不了 WAB-AQ 天花板)
+s5_nested_tuning_regression.py  -  leakage-safe nested tuning vs default for regression
+(tests whether hyperparameter tuning can move the WAB-AQ performance ceiling)
 
-做什么
-------
-对同一批特征表(JHU 细 / 动脉粗)上的每个可调模型, 给两套数:
-  * tuned   : 外层重复分层 K 折; 每个外层训练折上用 GridSearchCV(内层 K 折)调关键超参,
-              best_estimator_ 在该外层训练折上 refit, 只对外层测试折预测。
-  * default : 复用现有 harness 口径(pipelines.build_pipeline + 默认超参), 同一套外层折, 折内 fit。
-两套都池化折外预测算 Pearson r / MAE / RMSE / R2, 并做 patient-level bootstrap CI(复用 evaluate.bootstrap_ci)。
+What it does
+------------
+For each tunable model on the same feature tables (fine JHU / coarse arterial), report two sets:
+  * tuned   : outer repeated stratified K-fold; on each outer training fold, GridSearchCV
+              (inner K-fold) tunes key hyperparameters, best_estimator_ is refit on that outer
+              training fold and predicts only the outer test fold.
+  * default : same setup as the existing harness (pipelines.build_pipeline + default
+              hyperparameters), same outer folds, fit within fold.
+Both pool out-of-fold predictions to compute Pearson r / MAE / RMSE / R2, with patient-level
+bootstrap CIs (reusing evaluate.bootstrap_ci).
 
-防泄露(逐条对照 CLAUDE.md 铁律)
---------------------------------
-1) StandardScaler 是 Pipeline 第一步, 整条 Pipeline 进 GridSearchCV ->
-   scaler 只在每个 inner-train 子折 fit_transform, 从不见 inner-val, 更不见外层测试折。
-2) GridSearchCV.fit 只喂 X.iloc[tr](外层训练折); 选参 + refit 都只在训练折内完成。
-3) 外层测试折 X.iloc[te] 只用于 .predict, 全程没有任何 fit 碰过它。
-4) 外层用 wab_aq 分位分箱做分层(连续目标), 分箱标签只用于 split, 不进特征。
-5) 调参与评估分离: 内层 CV 选参, 外层折只评估, 不在同一批数据上又调又报分(嵌套)。
+Leakage guard
+-------------
+1) StandardScaler is the first Pipeline step and the whole Pipeline goes into GridSearchCV ->
+   the scaler is fit_transform'ed only on each inner-train sub-fold; it never sees inner-val,
+   let alone the outer test fold.
+2) GridSearchCV.fit only receives X.iloc[tr] (outer training fold); hyperparameter selection
+   and refit both happen inside the training fold.
+3) The outer test fold X.iloc[te] is only used for .predict; nothing is ever fit on it.
+4) Outer stratification uses quantile bins of wab_aq (continuous target); bin labels are used
+   only for splitting and never enter the features.
+5) Tuning and evaluation are separated: the inner CV selects hyperparameters, the outer folds
+   only evaluate (nested), so the same data is never used both to tune and to report.
 
 TabPFN
 ------
-按设计【不进网格、不调参】(默认即卖点)。只在 --models 显式含 TabPFN 时跑一套 default,
-且应当【单独进程 + 硬超时】启动(见文件尾命令), 不要和其它模型同进程。
+By design TabPFN has no grid and is not tuned (its default configuration is the point).
+A single default set is run only when --models explicitly includes TabPFN, and it should be
+launched in a separate process with a hard timeout (see the last command below), not in the
+same process as other models.
 
-用法
-----
-  # SMOKE(冒烟, 只 RandomForest 极小网格, 少 repeats):
-  PYENV_VERSION=data-analysis python src/s5_nested_tuning_regression.py \
+Usage
+-----
+  # SMOKE test (RandomForest only, tiny grid, few repeats):
+  python src/s5_nested_tuning_regression.py \
       --table data/jhu156_features_merged.tsv --name JHU_fine \
       --models RandomForest --smoke
 
-  # 全量(全模型全网格, 由主控后台跑):
-  PYENV_VERSION=data-analysis python src/s5_nested_tuning_regression.py \
+  # Full run (all models, full grids):
+  python src/s5_nested_tuning_regression.py \
       --table data/jhu156_features_merged.tsv --name JHU_fine \
       --models Ridge ElasticNet SVR_rbf RandomForest XGBoost LightGBM
 
-  # TabPFN 单独进程 + 硬超时(只 default):
-  perl -e 'alarm 1800; exec @ARGV' env PYENV_VERSION=data-analysis python \
+  # TabPFN in a separate process with a hard timeout (default only):
+  perl -e 'alarm 1800; exec @ARGV' python \
       src/s5_nested_tuning_regression.py --table data/jhu156_features_merged.tsv \
       --name JHU_fine --models TabPFN
 """
@@ -57,32 +66,32 @@ from sklearn.linear_model import Ridge, ElasticNet
 from sklearn.svm import SVR
 from sklearn.ensemble import RandomForestRegressor
 
-# 复用回归 harness 的数据加载 / 指标 / bootstrap CI / 默认 Pipeline 口径
+# reuse the regression harness's data loading / metrics / bootstrap CI / default Pipeline setup
 HARNESS_SRC = os.path.abspath(os.path.join(
     os.path.dirname(__file__), "..", "..", "arc_wab_aq_benchmark", "src"))
 sys.path.insert(0, HARNESS_SRC)
 import data as data_mod          # noqa: E402  load_data / describe
 import evaluate as ev            # noqa: E402  regression_metrics / bootstrap_ci
-from pipelines import build_pipeline  # noqa: E402  默认口径(StandardScaler -> est)
+from pipelines import build_pipeline  # noqa: E402  default setup (StandardScaler -> est)
 
 PKG = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SEED = 42
 N_SPLITS = 5
 N_REPEATS = 10
-N_STRAT_BINS = 4          # wab_aq 分位分箱数(连续目标分层用), 226 人 / 5 折下每箱足够
+N_STRAT_BINS = 4          # wab_aq quantile bins for stratifying the continuous target; enough per bin with 226 patients / 5 folds
 INNER_SPLITS = 5
 BOOTSTRAP_N = 2000
 SPARSE_DROP_FRAC = 0.10
 
-# 可调模型 + tuned 估计器 + 网格(小而合理)。键名 "model__<param>" 对准 Pipeline 步 "model"。
+# tunable models + tuned estimators + grids (small and reasonable). Keys "model__<param>" target Pipeline step "model".
 TUNABLE = {
     "Ridge", "ElasticNet", "SVR_rbf", "RandomForest", "XGBoost", "LightGBM",
 }
-# TabPFN 不在 TUNABLE: 永远只跑 default。
+# TabPFN is not in TUNABLE: always default only.
 
 
 def _tuned_estimator_and_grid(name, smoke):
-    """返回 (fresh estimator, param_grid)。smoke 时网格压到最小。"""
+    """Return (fresh estimator, param_grid). With smoke, the grid is reduced to a minimum."""
     if name == "Ridge":
         est = Ridge(random_state=SEED)
         grid = {"model__alpha": [0.1, 1.0, 10.0, 100.0]}
@@ -114,64 +123,65 @@ def _tuned_estimator_and_grid(name, smoke):
                 "model__num_leaves": [15, 31],
                 "model__subsample": [0.8, 1.0]}
     else:
-        raise ValueError(f"{name} 不是可调模型")
+        raise ValueError(f"{name} is not a tunable model")
 
     if smoke:
-        # SMOKE: 极小网格(只验证嵌套逻辑跑通, 不求最优)
+        # SMOKE: tiny grid (only checks that the nested logic runs, not optimal)
         if name == "RandomForest":
             grid = {"model__n_estimators": [200, 400]}
         else:
-            # 取每个超参第一个候选退化成 2 个点之内
+            # keep at most the first 2 candidates per hyperparameter
             grid = {k: v[:2] for k, v in grid.items()}
     return est, grid
 
 
 def _build_tuned_pipe(name, smoke):
-    """tuned 用的 Pipeline + 网格。StandardScaler 第一步 -> 进 GridSearchCV 后折内 fit。"""
+    """Pipeline + grid for the tuned run. StandardScaler is the first step -> fit within fold inside GridSearchCV."""
     est, grid = _tuned_estimator_and_grid(name, smoke)
     pipe = Pipeline([("scaler", StandardScaler()), ("model", est)])
     return pipe, grid
 
 
 def _strat_labels(y, n_bins):
-    """连续 wab_aq -> 分位箱标签, 仅供外层分层 split 使用, 不进特征矩阵。"""
-    # qcut 在重复值多时可能箱数不足, duplicates='drop' 兜底
+    """Continuous wab_aq -> quantile bin labels, used only for the outer stratified split, never in the feature matrix."""
+    # qcut may produce fewer bins when there are many ties; duplicates='drop' as a fallback
     labels = pd.qcut(y, q=n_bins, labels=False, duplicates="drop")
     return np.asarray(labels)
 
 
 def run_default(name, X, y, outer, n_repeats, device="cpu"):
-    """默认超参口径: 复用 build_pipeline, 同一套外层折, 折内 fit。返回池化 OOF。
+    """Default hyperparameters: reuse build_pipeline, same outer folds, fit within fold. Returns pooled OOF.
 
-    额外返回 per_rep[n_samples, n_repeats]: 每人在每个 repeat 的测试折预测,
-    仅供逐人 dump(跨 repeat 取均值)用, 不参与现有评测口径。
+    Also returns per_rep[n_samples, n_repeats]: each patient's test-fold prediction in each repeat,
+    used only for the per-patient dump (mean across repeats); not part of the existing evaluation.
     """
     yt = np.empty(len(y), dtype=float)
     yp = np.empty(len(y), dtype=float)
-    per_rep = np.full((len(y), n_repeats), np.nan, dtype=float)  # dump 用, 不动评测
+    per_rep = np.full((len(y), n_repeats), np.nan, dtype=float)  # for the dump only; evaluation unchanged
     strat = _strat_labels(y, N_STRAT_BINS)
     n_folds = outer.get_n_splits()
     for i, (tr, te) in enumerate(outer.split(X, strat)):
-        pipe = build_pipeline(name, SEED, device)     # 默认超参 Pipeline(scaler->est)
-        pipe.fit(X.iloc[tr], y.iloc[tr])              # 只见外层训练折
-        pred = pipe.predict(X.iloc[te])               # 只预测外层测试折
-        yp[te] = pred                                 # 评测口径: 原样不动(末 repeat 覆盖)
+        pipe = build_pipeline(name, SEED, device)     # default-hyperparameter Pipeline (scaler->est)
+        pipe.fit(X.iloc[tr], y.iloc[tr])              # outer training fold only
+        pred = pipe.predict(X.iloc[te])               # predicts the outer test fold only
+        yp[te] = pred                                 # evaluation: unchanged (last repeat overwrites)
         yt[te] = y.iloc[te].to_numpy()
-        per_rep[te, i // N_SPLITS] = pred             # dump: 按 repeat 列累积, 每列填满全样本
+        per_rep[te, i // N_SPLITS] = pred             # dump: one column per repeat, each column covers all samples
         if (i + 1) % n_folds == 0 or (i + 1) % 5 == 0:
             print(f"    [default:{name}] fold {i+1}/{outer.get_n_splits()}", flush=True)
     return yt, yp, per_rep
 
 
 def run_tuned(name, X, y, outer, n_repeats, smoke):
-    """嵌套调参口径: 外层每个训练折上 GridSearchCV(内层 CV)选参 + refit, 只预测外层测试折。
+    """Nested tuning: on each outer training fold, GridSearchCV (inner CV) selects hyperparameters
+    and refits; predicts the outer test fold only.
 
-    额外返回 per_rep[n_samples, n_repeats]: 每人在每个 repeat 的测试折预测,
-    仅供逐人 dump(跨 repeat 取均值)用, 不参与现有评测口径。
+    Also returns per_rep[n_samples, n_repeats]: each patient's test-fold prediction in each repeat,
+    used only for the per-patient dump (mean across repeats); not part of the existing evaluation.
     """
     yt = np.empty(len(y), dtype=float)
     yp = np.empty(len(y), dtype=float)
-    per_rep = np.full((len(y), n_repeats), np.nan, dtype=float)  # dump 用, 不动评测
+    per_rep = np.full((len(y), n_repeats), np.nan, dtype=float)  # for the dump only; evaluation unchanged
     strat = _strat_labels(y, N_STRAT_BINS)
     chosen = []
     n_folds = outer.get_n_splits()
@@ -179,15 +189,15 @@ def run_tuned(name, X, y, outer, n_repeats, smoke):
         pipe, grid = _build_tuned_pipe(name, smoke)
         gs = GridSearchCV(
             pipe, grid,
-            scoring="neg_mean_absolute_error",   # 与回归口径一致(优化 MAE)
-            cv=INNER_SPLITS,                     # 内层 K 折(只切外层训练折)
+            scoring="neg_mean_absolute_error",   # consistent with the regression setup (optimise MAE)
+            cv=INNER_SPLITS,                     # inner K-fold (splits the outer training fold only)
             n_jobs=-1, refit=True,
         )
-        gs.fit(X.iloc[tr], y.iloc[tr])           # 只喂外层训练折; 选参+refit 都在训练折内
-        pred = gs.predict(X.iloc[te])            # best_estimator_ 只预测外层测试折
-        yp[te] = pred                            # 评测口径: 原样不动(末 repeat 覆盖)
+        gs.fit(X.iloc[tr], y.iloc[tr])           # outer training fold only; selection + refit inside it
+        pred = gs.predict(X.iloc[te])            # best_estimator_ predicts the outer test fold only
+        yp[te] = pred                            # evaluation: unchanged (last repeat overwrites)
         yt[te] = y.iloc[te].to_numpy()
-        per_rep[te, i // N_SPLITS] = pred         # dump: 按 repeat 列累积, 每列填满全样本
+        per_rep[te, i // N_SPLITS] = pred         # dump: one column per repeat, each column covers all samples
         chosen.append(gs.best_params_)
         if (i + 1) % n_folds == 0 or (i + 1) % 5 == 0:
             print(f"    [tuned:{name}] fold {i+1}/{outer.get_n_splits()} "
@@ -206,11 +216,13 @@ def fmt_ci(c):
 
 
 def dump_patient_pred(name, model, config, ids, yt, per_rep):
-    """把逐人跨-repeat 平均预测写到 results/runs/reg_{粒度}_{模型}_{config}_patient_pred.csv。
+    """Write each patient's prediction averaged across repeats to
+    results/runs/reg_{granularity}_{model}_{config}_patient_pred.csv.
 
-    per_rep[n_samples, n_repeats]: 每列是一个 repeat 的全样本 OOF 预测。
-    每人跨 repeat 取均值(nanmean 兜底, 正常每格都有值)得到 y_pred_mean。
-    列: participant_id, y_true, y_pred_mean。只加 dump, 不碰评测口径。
+    per_rep[n_samples, n_repeats]: each column is one repeat's full-sample OOF prediction.
+    The per-patient mean across repeats (nanmean as a safeguard; normally every cell is filled)
+    gives y_pred_mean.
+    Columns: participant_id, y_true, y_pred_mean. Dump only; does not affect evaluation.
     """
     y_pred_mean = np.nanmean(per_rep, axis=1)
     df = pd.DataFrame({
@@ -227,7 +239,7 @@ def dump_patient_pred(name, model, config, ids, yt, per_rep):
 
 
 def load_xy(table_path):
-    """复用 harness data.load_data 的清洗口径(drop NA -> fillna0 -> 丢稀疏列, 不缩放)。"""
+    """Reuse the cleaning rules of harness data.load_data (drop NA -> fillna 0 -> drop sparse columns, no scaling)."""
     abs_path = table_path if os.path.isabs(table_path) else os.path.join(PKG, table_path)
     cfg = {"data": {"path": abs_path, "sep": "\t", "id_col": "participant_id",
                     "target": "wab_aq", "sparse_drop_frac": SPARSE_DROP_FRAC}}
@@ -236,16 +248,16 @@ def load_xy(table_path):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="泄露安全的回归嵌套调参 vs 默认")
-    ap.add_argument("--table", required=True, help="特征表(相对 PKG 或绝对路径)")
-    ap.add_argument("--name", required=True, help="数据集标签, 如 JHU_fine / arterial_coarse")
+    ap = argparse.ArgumentParser(description="Leakage-safe nested tuning vs default for regression")
+    ap.add_argument("--table", required=True, help="feature table (relative to PKG, or absolute path)")
+    ap.add_argument("--name", required=True, help="dataset label, e.g. JHU_fine / arterial_coarse")
     ap.add_argument("--models", nargs="*",
                     default=["Ridge", "ElasticNet", "SVR_rbf", "RandomForest",
                              "XGBoost", "LightGBM"],
-                    help="模型子集; TabPFN 只跑 default(不调参), 建议单独进程")
+                    help="model subset; TabPFN runs default only (no tuning), preferably in a separate process")
     ap.add_argument("--smoke", action="store_true",
-                    help="冒烟: 极小网格 + 少 repeats, 只验证跑通无泄露")
-    ap.add_argument("--repeats", type=int, default=None, help="覆盖外层 repeats")
+                    help="smoke test: tiny grid + few repeats, only checks that it runs without leakage")
+    ap.add_argument("--repeats", type=int, default=None, help="override the number of outer repeats")
     ap.add_argument("--device", default="cpu", help="TabPFN device")
     args = ap.parse_args()
 
@@ -259,8 +271,8 @@ def main():
           f"outer={N_SPLITS}x{n_repeats} stratified(bins={N_STRAT_BINS})  "
           f"smoke={args.smoke}", flush=True)
 
-    ids = list(X.index)                          # participant_id(data.load_data 把 id 设成 index)
-    dump_cfg_suffix = "_smoke" if args.smoke else ""  # smoke 的 dump 单独命名, 不污染正式产物
+    ids = list(X.index)                          # participant_id (data.load_data sets the id as index)
+    dump_cfg_suffix = "_smoke" if args.smoke else ""  # smoke dumps get their own name so they never overwrite real outputs
 
     rows = []
     for name in args.models:
@@ -287,7 +299,7 @@ def main():
               f"MAE={m_d['mae']:.2f} RMSE={m_d['rmse']:.2f} R2={m_d['r2']:.3f} ({dt_d:.1f}s)",
               flush=True)
 
-        # tuned(TabPFN 不调; 其余可调模型才进网格)
+        # tuned (TabPFN is not tuned; only tunable models enter the grid search)
         if name in TUNABLE:
             t1 = time.time()
             yt_t, yp_t, per_rep_t, chosen = run_tuned(name, X, y, outer, n_repeats, args.smoke)
@@ -319,7 +331,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     suffix = "_smoke" if args.smoke else ""
     out_path = os.path.join(out_dir, f"nested_tuning_{args.name}{suffix}.csv")
-    if os.path.exists(out_path):                 # 合并: 删本轮重跑的模型行再拼
+    if os.path.exists(out_path):                 # merge: drop rows for models re-run now, then concatenate
         old = pd.read_csv(out_path)
         old = old[~old["model"].isin(new["model"])]
         new = pd.concat([old, new], ignore_index=True)

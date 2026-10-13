@@ -1,20 +1,24 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-s13_type_significance.py — 类型【二分类】配对显著性检验(复用 s12 的逐人 dump, 不重训)。
+s13_type_significance.py - paired significance tests for binary aphasia-type
+classification (reuses the s12 per-patient dumps, no retraining).
 
-镜像 s6_significance_classification.py。对每个二分任务(fluent / broca)做三组对比:
-  1) fine_vs_coarse  : RandomForest, JHU_fine vs arterial_coarse(同一批病人)
+Mirrors s6_significance_classification.py. For each binary task (fluent / broca),
+three contrasts:
+  1) fine_vs_coarse  : RandomForest, JHU_fine vs arterial_coarse (same patients)
   2) tuned_vs_default: RandomForest, JHU_fine
-  3) RF_vs_LogReg    : JHU_fine, default(树 vs 线性, 次要)
+  3) RF_vs_LogReg    : JHU_fine, default (tree vs linear, secondary)
 
-指标与检验(与 s6 同):
-  - AUC 差: 成对(correlated)DeLong(DeLong 1988 + Sun&Xu 2014 快速算法)。
-  - balanced-acc 差: 患者级配对 bootstrap(对人重抽样 B=2000), 阈值 0.5。
-只输出原始 p + 差 + 95%CI; 多重比较校正由主控统一做。
+Metrics and tests (same as s6):
+  - AUC difference: paired (correlated) DeLong test (DeLong 1988 + Sun & Xu 2014 fast algorithm).
+  - balanced-acc difference: patient-level paired bootstrap (resampling patients, B=2000),
+    threshold 0.5.
+Outputs raw p + difference + 95% CI only; multiple-comparison correction is applied
+centrally downstream.
 
-读: results/runs/clf_type_{task}_{gran}_{model}_{tag}_patient_probs.csv (s12 产)
-写: results/summary/type_significance.csv
+Reads:  results/runs/clf_type_{task}_{gran}_{model}_{tag}_patient_probs.csv (from s12)
+Writes: results/summary/type_significance.csv
 """
 import os
 import numpy as np
@@ -30,7 +34,7 @@ SEED = 20260605
 THRESHOLD = 0.5
 
 
-# ---------------- DeLong 快速算法(Sun & Xu 2014) ----------------
+# ---------------- fast DeLong algorithm (Sun & Xu 2014) ----------------
 def _compute_midrank(x):
     J = np.argsort(x); Z = x[J]; N = len(x); T = np.zeros(N, dtype=float); i = 0
     while i < N:
@@ -141,7 +145,7 @@ def main():
             try:
                 all_rows.extend(run_contrast(task, nm, sa, sb))
             except FileNotFoundError as e:
-                print(f"  [skip] {task}/{nm}: 缺 dump ({e})")
+                print(f"  [skip] {task}/{nm}: missing dump ({e})")
     out = pd.DataFrame(all_rows, columns=["task", "contrast", "comparison", "metric", "test",
                                           "n", "value_a", "value_b", "diff", "ci_lo", "ci_hi", "p_value"])
     out.to_csv(OUT_CSV, index=False)

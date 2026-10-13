@@ -22,7 +22,7 @@ A run is PASS only if every fold is disjoint, every scaler saw train rows only,
 the permuted score mean is at chance, AND both positive controls trip.
 
 Run:
-  PYENV_VERSION=data-analysis python src/s26_leakage_probe.py
+  python src/s26_leakage_probe.py
 Outputs: results/summary/leakage_probe.csv and results/summary/leakage_probe.log
 """
 from __future__ import annotations

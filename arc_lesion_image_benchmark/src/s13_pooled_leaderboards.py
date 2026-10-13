@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-s13_pooled_leaderboards.py —— 把回归/分类排行榜统一重算成【池化 OOF】口径。
+s13_pooled_leaderboards.py - recomputes the regression / classification leaderboards
+on a pooled out-of-fold (OOF) basis.
 
-为什么: 全文+图统一到池化(n=226 病人, 患者级 bootstrap CI, 与配对/等价检验同一向量)。
-逐折平均口径(原主表)不再混用。本脚本从已存的逐人预测重算, 不重训模型。
+Why: all reported results and figures use pooled OOF predictions (n=226 patients,
+patient-level bootstrap CI, the same prediction vectors used by the paired and
+equivalence tests), rather than per-fold averages. This script recomputes from the
+saved per-patient predictions; no models are retrained.
 
-输入(逐人, held-out):
-  - 回归: results/runs/reg_<atlas>_<model>_<cfg>_patient_pred.csv  (y_true, y_pred_mean)
-  - 分类: results/runs/clf_<atlas>_<model>_<cfg>_patient_probs.csv (y_true, y_prob_mean, y_pred)
-输出:
+Inputs (per patient, held-out):
+  - regression:     results/runs/reg_<atlas>_<model>_<cfg>_patient_pred.csv  (y_true, y_pred_mean)
+  - classification: results/runs/clf_<atlas>_<model>_<cfg>_patient_probs.csv (y_true, y_prob_mean, y_pred)
+Outputs:
   - results/summary/pooled_regression_leaderboard.csv
   - results/summary/pooled_classification_leaderboard.csv
 """
@@ -98,13 +101,13 @@ def main():
     reg = reg_rows(); clf = clf_rows()
     reg.to_csv(os.path.join(OUT, "pooled_regression_leaderboard.csv"), index=False)
     clf.to_csv(os.path.join(OUT, "pooled_classification_leaderboard.csv"), index=False)
-    print("=== 回归 池化排行榜(default)===")
+    print("=== Regression pooled leaderboard (default) ===")
     print(reg[reg.config == "default"][["atlas", "model", "pooled_r", "r_ci95", "MAE"]].to_string(index=False))
-    print("\n=== 回归 池化(tuned, 仅 RF 等)===")
+    print("\n=== Regression pooled (tuned; RF and other tuned models only) ===")
     print(reg[reg.config == "tuned"][["atlas", "model", "pooled_r", "MAE"]].to_string(index=False))
-    print("\n=== 分类 池化排行榜(default)===")
+    print("\n=== Classification pooled leaderboard (default) ===")
     print(clf[clf.config == "default"][["atlas", "model", "pooled_bAcc", "pooled_AUC", "F1_severe"]].to_string(index=False))
-    print("\n=== 分类 池化(tuned)===")
+    print("\n=== Classification pooled (tuned) ===")
     print(clf[clf.config == "tuned"][["atlas", "model", "pooled_bAcc", "pooled_AUC"]].to_string(index=False))
 
 

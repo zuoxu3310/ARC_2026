@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 """
-s11b_tabpfn_nest.py — TabPFN 内部集成数 n_estimators 扫描(找 JHU 上能压进时间又不掉精度的值)。
+s11b_tabpfn_nest.py -- sweep of TabPFN's internal ensemble size n_estimators (find a value
+that fits the time budget on JHU without losing accuracy).
 
-背景: TabPFN 默认 n_estimators=8(内部 8 套排列各跑一遍前向再投票), 在 JHU(72 维)× 5x10 折上
-CPU 跑超 20 分钟超时。降 n_estimators 线性省时间(不是调参, 是降推理成本)。本脚本对每个 n
-跑完整 s11 二分协议(scaler->SMOTE->TabPFN), 报墙钟时间 + balanced_acc/AUC, 看精度掉多少。
+Background: TabPFN defaults to n_estimators=8 (8 internal permutations, one forward pass each,
+then voting). On JHU (72 dims) x 5x10 folds this runs over 20 minutes on CPU and times out.
+Lowering n_estimators saves time linearly (this is not tuning; it only lowers inference
+cost). For each n the script runs the full s11 binary protocol (scaler->SMOTE->TabPFN) and
+reports wall-clock time + balanced_acc/AUC to show how much accuracy drops.
 
-复用 s11 的 load_xy / 协议常数。只跑 TabPFN(单进程, 不混其它模型)。
-运行:
-  perl -e 'alarm 5400; exec @ARGV' env PYENV_VERSION=data-analysis python \
+Reuses load_xy / protocol constants from s11. Runs TabPFN only (single process, no other models).
+Run:
+  perl -e 'alarm 5400; exec @ARGV' python \
       src/s11b_tabpfn_nest.py --table data/jhu156_features_merged.tsv --name JHU_fine \
       --task fluent --nest 2 3 4 5
 """
@@ -25,7 +28,7 @@ from sklearn.metrics import balanced_accuracy_score, roc_auc_score, f1_score, ma
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.over_sampling import SMOTE
 
-import s11_type_classification as s11  # 复用 load_xy / 常数
+import s11_type_classification as s11  # reuse load_xy / constants
 
 warnings.filterwarnings("ignore")
 PKG = Path(__file__).resolve().parents[1]

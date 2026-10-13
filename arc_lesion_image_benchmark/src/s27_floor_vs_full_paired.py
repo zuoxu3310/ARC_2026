@@ -2,23 +2,28 @@
 """
 s27_floor_vs_full_paired.py
 
-二分类(severe = WAB-AQ <= 50)下,"两特征地板(lesion volume + age)" vs
-"满特征(JHU 189 区 -> 71 建模特征)" 的 **配对** 显著性检验。
+Paired significance test for binary classification (severe = WAB-AQ <= 50):
+two-feature floor (lesion volume + age) vs full features (JHU 189 regions -> 71
+modelling features).
 
-动机: 主表报地板最佳 SVM balanced acc 0.778 vs 满特征最佳 RF 0.754。这两个数原本是
-两次独立 5x10 跑出来的(不同折分配),不能直接说"反超"。本脚本用 **同一组**
-RepeatedStratifiedKFold(5x10, seed=42) split, 把地板 SVM 与满特征 RF 逐 repeat 配对
-(协议单位 = repeat: 每 repeat 池化 5 折折外预测算一次 balanced acc, 共 10 个),
-再做配对 t / Wilcoxon / bootstrap CI。
+Motivation: the main table reports floor best SVM balanced acc 0.778 vs full-feature
+best RF 0.754. Those two numbers come from two independent 5x10 runs (different fold
+assignments), so they cannot be compared directly. This script uses the **same**
+RepeatedStratifiedKFold (5x10, seed=42) splits and pairs floor SVM with full-feature RF
+per repeat (unit = repeat: out-of-fold predictions from the 5 folds are pooled into one
+balanced acc per repeat, 10 in total), then runs a paired t-test / Wilcoxon / bootstrap CI.
 
-口径与 s3_classification_benchmark.py 完全一致(折内 StandardScaler->SMOTE->clf,
-SVC(rbf,prob,seed42), RandomForest(500,seed42))。复现主表 0.778/0.754 作为自检。
+Settings match s3_classification_benchmark.py exactly (in-fold
+StandardScaler -> SMOTE -> clf, SVC(rbf, prob, seed 42), RandomForest(500, seed 42)).
+Reproducing the main-table 0.778 / 0.754 serves as a self-check.
 
-注意: 这是 **repeat 层**(同一批 226 人, 跨 CV 洗法)的稳定性检验, 证明差不是洗折运气;
-它不等于病人层泛化(换一批病人), 后者需 patient-level bootstrap, 会更宽。
+Note: this is a **repeat-level** stability test (same 226 patients, different CV
+shuffles) showing the difference is not fold-assignment luck. It is not patient-level
+generalisation (a new patient sample), which requires a patient-level bootstrap and
+gives wider intervals.
 
-运行:
-  PYENV_VERSION=data-analysis python src/s27_floor_vs_full_paired.py
+Run:
+  python src/s27_floor_vs_full_paired.py
 """
 from __future__ import annotations
 from pathlib import Path
@@ -47,7 +52,7 @@ def load(path):
 
 def main():
     full, floor = load(FULL), load(FLOOR)
-    common = sorted(full.index.intersection(floor.index))          # 同病人同顺序 -> 同 split
+    common = sorted(full.index.intersection(floor.index))          # same patients in same order -> identical splits
     full, floor = full.loc[common], floor.loc[common]
     y = (full["wab_aq"].values <= THR).astype(int)
     ff = full.drop(columns=["wab_aq"]); n = len(ff)

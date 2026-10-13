@@ -2,29 +2,35 @@
 """
 s11_type_classification.py
 
-把"失语类型"做成与 s3(severe 二分类)同协议的基准。三种目标(--task):
-  fluent    : 非流畅 {Broca,Global,TranscorticalMotor,TranscorticalMixed}
-              vs 流畅 {Wernicke,Conduction,Anomic,TranscorticalSensory}  (1=非流畅)
-  broca     : Broca vs 其它失语类型(去 None/NaN)                        (1=Broca)
-  multiclass: 6 类失语类型(Broca/Anomic/Conduction/Global/Wernicke/TCM,去 None/NaN)
-              —— 探索性, 少数类(Wernicke/TCM 个位数)指标不可靠, 不作门面
+Aphasia-type benchmark using the same protocol as s3 (severe binary classification). Three
+targets (--task):
+  fluent    : non-fluent {Broca,Global,TranscorticalMotor,TranscorticalMixed}
+              vs fluent {Wernicke,Conduction,Anomic,TranscorticalSensory}  (1 = non-fluent)
+  broca     : Broca vs other aphasia types (None/NaN removed)              (1 = Broca)
+  multiclass: 6 aphasia types (Broca/Anomic/Conduction/Global/Wernicke/TCM, None/NaN removed)
+              -- exploratory; metrics for the minority classes (Wernicke/TCM, single-digit counts)
+              are unreliable and are not used as headline results
 
-协议完全对齐 s3: 折内 StandardScaler -> SMOTE -> 分类器(imblearn Pipeline 防泄露);
-分层重复 K 折(5x10), 每 repeat 汇总折外预测算指标, 跨 repeat 取均值±标准差。
-multiclass 的 SMOTE 用自适应 k_neighbors, 训练折某类样本太少则该折跳过 SMOTE(计数上报)。
+Protocol identical to s3: in-fold StandardScaler -> SMOTE -> classifier (imblearn Pipeline, so
+scaler and SMOTE are fitted on the training fold only, no leakage); repeated stratified K-fold
+(5x10); for each repeat, metrics are computed on the pooled out-of-fold predictions; reported as
+mean +/- SD across repeats.
+For multiclass, SMOTE uses an adaptive k_neighbors; if a class in a training fold is too small,
+SMOTE is skipped for that fold (the number of skipped folds is reported).
 
-二分类指标: balanced_acc / AUC / F1(pos) / MCC / pos 精确率召回率(同 s3)。
-multiclass 指标: balanced_acc(=macro recall) / macro_F1 / accuracy / macro_AUC(OvR)。
+Binary metrics: balanced_acc / AUC / F1(pos) / MCC / pos precision and recall (as in s3).
+Multiclass metrics: balanced_acc (= macro recall) / macro_F1 / accuracy / macro_AUC (OvR).
 
-副产物(供 s12/s14 等下游):
-  results/runs/type_{task}_{feature}_{model}_oof.csv      每人池化折外预测(真值/预测/概率)
-  results/runs/type_{task}_{feature}_{model}_perrepeat.csv 逐 repeat 指标向量(供配对检验)
+By-products (for downstream scripts such as s12/s14):
+  results/runs/type_{task}_{feature}_{model}_oof.csv      pooled out-of-fold predictions per patient (truth/prediction/probability)
+  results/runs/type_{task}_{feature}_{model}_perrepeat.csv per-repeat metric vectors (for paired tests)
 
-运行(非 TabPFN):
-  PYENV_VERSION=data-analysis python src/s11_type_classification.py \
+Run (non-TabPFN):
+  python src/s11_type_classification.py \
       --table data/jhu156_features_merged.tsv --name JHU_fine --task fluent
-TabPFN 单独进程 + 硬超时(见 CLAUDE.md):
-  perl -e 'alarm 1800; exec @ARGV' PYENV_VERSION=data-analysis python src/s11_type_classification.py \
+TabPFN must run in its own process (--models TabPFN) with a hard timeout: run in the same
+process after other models (especially MLP) it can hang silently (0% CPU, no error):
+  perl -e 'alarm 1800; exec @ARGV' python src/s11_type_classification.py \
       --table data/ArterialAtlas156_features_merged.tsv --name arterial_coarse --task fluent --models TabPFN
 """
 from __future__ import annotations
@@ -33,7 +39,8 @@ import warnings
 from pathlib import Path
 import numpy as np
 import pandas as pd
-# 少数类(TCM=3)< n_splits 的分层警告无害(分层仍成立, 个别折该类为 0), 静音保持日志干净
+# The stratification warning for a minority class (TCM=3) smaller than n_splits is harmless
+# (stratification still holds; some folds contain 0 of that class); silenced to keep logs clean.
 warnings.filterwarnings("ignore", message="The least populated class in y has only")
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.preprocessing import StandardScaler
@@ -57,7 +64,7 @@ ALL_MODELS = ["Dummy", "LogReg", "SVM_rbf", "RandomForest", "XGBoost", "LightGBM
 
 NONFLUENT = {"Broca", "Global", "TranscorticalMotor", "TranscorticalMixed"}
 FLUENT = {"Wernicke", "Conduction", "Anomic", "TranscorticalSensory"}
-NON_TYPE = {"None", "nan", "NaN", ""}   # 非失语 / 缺失, 类型任务里全部剔除
+NON_TYPE = {"None", "nan", "NaN", ""}   # non-aphasic / missing; excluded from all type tasks
 
 
 def estimator(name, multiclass=False):
@@ -89,7 +96,7 @@ def estimator(name, multiclass=False):
 
 
 def smote_for(y_train):
-    """自适应 SMOTE: k_neighbors = min(5, 最小类样本-1); 最小类<2 则返回 None(不重采样)。"""
+    """Adaptive SMOTE: k_neighbors = min(5, smallest class size - 1); returns None (no resampling) if the smallest class has < 2 samples."""
     counts = np.bincount(y_train)
     nz = counts[counts > 0]
     smallest = nz.min()
@@ -119,7 +126,7 @@ def load_xy(table_path, task):
     if task == "fluent":
         keep_mask = df["wab_type"].isin(NONFLUENT | FLUENT)
         sub = df[keep_mask].copy()
-        y = sub["wab_type"].isin(NONFLUENT).astype(int).values     # 1 = 非流畅
+        y = sub["wab_type"].isin(NONFLUENT).astype(int).values     # 1 = non-fluent
         classes = ["fluent", "non-fluent"]
     elif task == "broca":
         keep_mask = ~df["wab_type"].isin(NON_TYPE) & df["wab_type"].notna()
@@ -179,7 +186,8 @@ def run_model(name, X, y, classes, task):
 
     oof_pred = np.full(len(y), -1)
     oof_prob = (np.zeros((len(y), n_classes)) if multiclass else np.zeros(len(y)))
-    # 池化: 跨 repeat 累加每人概率, 末尾取均值 -> 供下游混淆矩阵/校准
+    # pooling: accumulate each patient's probability across repeats and average at the end
+    # -> used downstream for confusion matrices / calibration
     pool_prob = (np.zeros((len(y), n_classes)) if multiclass else np.zeros(len(y)))
     pool_cnt = np.zeros(len(y))
     smote_skips = 0
@@ -193,7 +201,7 @@ def run_model(name, X, y, classes, task):
         try:
             pipe.fit(X[tr], y[tr])
         except ValueError:
-            # SMOTE 仍报错(极端类不平衡) -> 退回无重采样
+            # SMOTE still fails (extreme class imbalance) -> fall back to no resampling
             steps = [("scaler", StandardScaler()), ("clf", estimator(name, multiclass))]
             if name == "Dummy":
                 steps = [("clf", estimator(name, multiclass))]
@@ -239,7 +247,7 @@ def run_model(name, X, y, classes, task):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--table", required=True)
-    ap.add_argument("--name", required=True, help="特征集标签: JHU_fine / arterial_coarse")
+    ap.add_argument("--name", required=True, help="feature-set label: JHU_fine / arterial_coarse")
     ap.add_argument("--task", required=True, choices=["fluent", "broca", "multiclass"])
     ap.add_argument("--models", nargs="*", default=ALL_MODELS)
     args = ap.parse_args()
@@ -250,7 +258,7 @@ def main():
     lab = {i: c for i, c in enumerate(classes)} if args.task == "multiclass" else \
           ({0: classes[0], 1: classes[1]})
     distr = ", ".join(f"{lab[int(k)]}={int(v)}" for k, v in dist.items())
-    print(f"[{args.name}/{args.task}] n={len(y)}  类别: {distr}  features={X.shape[1]}")
+    print(f"[{args.name}/{args.task}] n={len(y)}  classes: {distr}  features={X.shape[1]}")
 
     runs = PKG / "results" / "runs"; runs.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -266,12 +274,12 @@ def main():
         extra = (f"macroF1={summ['macro_f1'][0]:.3f}" if args.task == "multiclass"
                  else f"AUC={summ['auc'][0]:.3f} F1={summ['f1_pos'][0]:.3f}")
         print(f"  {name:14s} bAcc={ba:.3f}  {extra}  ({dt:.1f}s)" +
-              (f"  [SMOTE跳过{skips}折]" if skips else ""))
+              (f"  [SMOTE skipped in {skips} folds]" if skips else ""))
 
-        # dump 逐 repeat 指标(配对检验用)
+        # dump per-repeat metrics (for paired tests)
         pr = pd.DataFrame(per_repeat); pr.insert(0, "repeat", range(1, len(pr) + 1))
         pr.to_csv(runs / f"type_{args.task}_{args.name}_{name}_perrepeat.csv", index=False)
-        # dump 每人池化折外(混淆矩阵/校准用)
+        # dump pooled out-of-fold predictions per patient (for confusion matrices / calibration)
         if args.task == "multiclass":
             od = pd.DataFrame(mean_prob, columns=[f"prob_{c}" for c in classes])
             od.insert(0, "participant_id", ids); od.insert(1, "y_true", y)

@@ -1,4 +1,5 @@
-# 一次性: 用"平均误差(MAE,不吃量程)"做方差分解,强模型口径(含/不含 TabPFN),回归。
+# One-off: variance decomposition of mean absolute error (MAE, insensitive to AQ range),
+# strong-model set (with / without TabPFN), regression.
 import pandas as pd, numpy as np, os
 import statsmodels.formula.api as smf
 from pathlib import Path
@@ -17,9 +18,9 @@ def eta2(d,y="mae"):
     ss=aov["sum_sq"]; tot=ss.sum()
     return {k.replace("C(","").replace(")",""):round(ss[k]/tot,4) for k in ss.index}
 COMP=["RandomForest","XGBoost","LightGBM"]
-print("=== 回归 · 平均误差(MAE)方差分解 · 强模型口径 ===")
-print("不含 TabPFN (RF/XGB/LGBM):", eta2(df[df.model.isin(COMP)]))
-print("含 TabPFN (RF/XGB/LGBM/TabPFN):", eta2(df[df.model.isin(COMP+["TabPFN"])]))
-print("\n参考: 同口径 r(原始,未Fisher-z) 方差分解:")
-print("不含 TabPFN:", eta2(df[df.model.isin(COMP)],"r"))
-print("含 TabPFN:", eta2(df[df.model.isin(COMP+["TabPFN"])],"r"))
+print("=== Regression | MAE variance decomposition | strong-model set ===")
+print("Without TabPFN (RF/XGB/LGBM):", eta2(df[df.model.isin(COMP)]))
+print("With TabPFN (RF/XGB/LGBM/TabPFN):", eta2(df[df.model.isin(COMP+["TabPFN"])]))
+print("\nReference: variance decomposition of r on the same set (raw r, not Fisher-z):")
+print("Without TabPFN:", eta2(df[df.model.isin(COMP)],"r"))
+print("With TabPFN:", eta2(df[df.model.isin(COMP+["TabPFN"])],"r"))

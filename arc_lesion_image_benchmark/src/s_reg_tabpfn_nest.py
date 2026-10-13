@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 """
-s_reg_tabpfn_nest.py — 严重度【WAB-AQ 回归, 留一法】TabPFN 的 n_estimators 扫描。
+s_reg_tabpfn_nest.py -- TabPFN n_estimators sweep for severity (WAB-AQ regression, leave-one-out).
 
-目的: 验证之前 benchmark_loo 里 TabPFN 回归分(r≈0.707/0.714, 默认 n_estimators=8)对集成遍数敏不敏感。
-复用 arc_wab_aq_benchmark 的 data.load_data / evaluate(同清洗 + 同 bootstrap CI)。
-留一法 + 折内 StandardScaler(无泄露); 每个 n 用一个 TabPFNRegressor 重复 fit 226 折(避免反复建实例假死)。
+Purpose: check whether the earlier TabPFN regression scores in benchmark_loo (r~0.707/0.714,
+default n_estimators=8) are sensitive to the number of ensemble members.
+Reuses data.load_data / evaluate from arc_wab_aq_benchmark (same cleaning + same bootstrap CI).
+Leave-one-out + in-fold StandardScaler (no leakage); for each n a single TabPFNRegressor
+instance is re-fit over all 226 folds (re-creating instances repeatedly caused hangs).
 
-运行(动脉, 快):
-  perl -e 'alarm shift; exec @ARGV' 7200 env PYENV_VERSION=data-analysis python \
+Run (arterial, fast):
+  perl -e 'alarm shift; exec @ARGV' 7200 python \
       src/s_reg_tabpfn_nest.py --table data/ArterialAtlas156_features_merged.tsv \
       --name arterial_coarse --nest 2 3 4 5 6 8
 """
@@ -49,8 +51,8 @@ def run_one(X, y, n_est):
     try:
         reg = TabPFNRegressor(device="cpu", random_state=SEED, n_estimators=n_est)
     except TypeError:
-        # 兼容: 某些版本参数名不同 -> 退回默认并标注
-        print(f"    [warn] TabPFNRegressor 不接受 n_estimators, 用默认跑 n_est={n_est} 实为默认", flush=True)
+        # Compatibility: some versions name this parameter differently -> fall back to the default and flag it
+        print(f"    [warn] TabPFNRegressor does not accept n_estimators; running with defaults, so n_est={n_est} is actually the default", flush=True)
         reg = TabPFNRegressor(device="cpu", random_state=SEED)
     n = len(y)
     yt = np.empty(n); yp = np.empty(n)

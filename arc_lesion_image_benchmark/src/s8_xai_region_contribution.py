@@ -1,50 +1,60 @@
 #!/usr/bin/env python
 """
-s8_xai_region_contribution.py  ——  RandomForest 脑区贡献的【泄露安全】可解释性分析
+s8_xai_region_contribution.py  -  leakage-safe explainability analysis of RandomForest region contributions
 
-口径硬声明
-----------
-全程是【预测关联 predictive association】, 不是因果定位。任何 "region X 重要" 只表示
-"在本模型本数据下, 扰动该列会让折外预测变差", 不写 "X 区导致严重失语"。
+Scope of claims
+---------------
+Everything here is predictive association, not causal localisation. "Region X is important"
+only means "with this model and these data, perturbing this column worsens out-of-fold
+predictions"; it never means "region X causes severe aphasia".
 
-做什么(对 RandomForest, 两任务 × 两粒度; 重点 arterial_coarse 因最可解释)
-------------------------------------------------------------------------
-任务:
-  * clf : 分类 severe = wab_aq <= 50。折内口径 = 主表 s3(StandardScaler -> SMOTE -> RF),
-          协议 = RepeatedStratifiedKFold(5x10)。
-  * reg : 回归 wab_aq。折内口径 = scaler -> RF(默认超参), 协议 = RepeatedStratifiedKFold(5x10),
-          连续目标用分位分箱分层(与 s5 一致)。
-粒度: arterial_coarse(15 列, 最可解释) + JHU_fine(~71 列)。
+What it does (RandomForest, two tasks x two granularities; focus on arterial_coarse as the most interpretable)
+-------------------------------------------------------------------------------------------------------------
+Tasks:
+  * clf : classification, severe = wab_aq <= 50. In-fold setup = main s3 table
+          (StandardScaler -> SMOTE -> RF), protocol = RepeatedStratifiedKFold (5x10).
+  * reg : regression on wab_aq. In-fold setup = scaler -> RF (default hyperparameters),
+          protocol = RepeatedStratifiedKFold (5x10); the continuous target is stratified by
+          quantile bins (same as s5).
+Granularities: arterial_coarse (15 columns, most interpretable) + JHU_fine (~71 columns).
 
-五块分析
---------
-1) 折外置换重要度: 每折在【测试折】上 permutation_importance(对拟合好的 pipeline,
-   置换 raw X 列 -> 重新 predict -> 看指标掉多少)。scaler/SMOTE 是 pipeline 内步骤,
-   只在 fit 时见训练折, predict 阶段不触发 SMOTE, 故置换安全。跨折求 均值±std -> 稳定性。
-   比 impurity(基尼)重要度可靠(impurity 偏向高基数/连续列、且在训练数据上算)。
-2) SHAP(仅 arterial_coarse, 因维度小可解释): 每折 TreeExplainer 在【测试折】上算 SHAP,
-   折外聚合 mean(|SHAP|); 报跨折 top-k 区是否稳定(rank 一致性), 换折就变 = 共线性 artifact 警告。
-3) 共线性: 特征间 Spearman 相关 -> 层次聚类(1-|rho| 距离, 阈值 0.4 即 |rho|>=0.6 视为一簇)。
-   报【组级】置换重要度(把一簇列一起置换), 并标注 top 区里哪些彼此共线
-   -> 避免 "region X 驱动" 实为一簇共损伤区的假象。
-4) 体积校正: (a) lesion_volume 单独的折外置换重要度多大;
-   (b) 含 vs 不含 lesion_volume 两套模型, 看 top 脑区重要度怎么变(掉很多 = 体积代理);
-   (c) 把每个脑区列对 lesion_volume 做线性残差(去掉总病灶量的线性成分)后再跑置换重要度
-   -> 区分 "脑区特异" vs "只是总病灶量代理"。
-5) 解释边界: 见脚本尾打印 + 返回。
+Five analyses
+-------------
+1) Out-of-fold permutation importance: in each fold, permutation_importance on the test fold
+   (fitted pipeline; permute raw X columns -> re-predict -> measure the metric drop).
+   scaler/SMOTE are pipeline steps that only see the training fold at fit time, and SMOTE is
+   not triggered at predict time, so permutation is leakage-safe. Mean +/- std across folds
+   -> stability. More reliable than impurity (Gini) importance, which is biased toward
+   high-cardinality/continuous columns and is computed on training data.
+2) SHAP (arterial_coarse only, low dimension so interpretable): per fold, TreeExplainer computes
+   SHAP on the test fold, aggregated out-of-fold as mean(|SHAP|); reports whether the top-k
+   regions are stable across folds (rank consistency). Top-k changing across folds is flagged
+   as a possible collinearity artifact.
+3) Collinearity: Spearman correlation between features -> hierarchical clustering
+   (distance 1-|rho|, threshold 0.4, i.e. |rho| >= 0.6 forms one cluster). Reports group-level
+   permutation importance (all columns of a cluster permuted together) and marks which top
+   regions are collinear with each other
+   -> avoids a spurious "region X drives it" when it is really a cluster of co-lesioned regions.
+4) Volume correction: (a) out-of-fold permutation importance of lesion_volume itself;
+   (b) models with vs without lesion_volume: how top-region importance changes
+       (a large drop = volume proxy);
+   (c) linearly residualise each region column on lesion_volume (removing the linear component
+       of total lesion load) and rerun permutation importance
+   -> separates "region-specific" from "just a proxy for total lesion load".
+5) Interpretation limits: printed at the end of the script.
 
-输出
-----
-  results/summary/xai_perm_importance_{task}_{name}.csv     折外置换重要度 + 稳定性
-  results/summary/xai_shap_{task}_{name}.csv                SHAP 聚合 + 跨折稳定性(仅 coarse)
-  results/summary/xai_collinearity_{name}.csv               相关簇成员
-  results/summary/xai_group_importance_{task}_{name}.csv    组级(共线簇)置换重要度
-  results/summary/xai_volume_correction_{task}_{name}.csv   含/不含 volume + 残差校正后重要度
+Outputs
+-------
+  results/summary/xai_perm_importance_{task}_{name}.csv     out-of-fold permutation importance + stability
+  results/summary/xai_shap_{task}_{name}.csv                SHAP aggregate + cross-fold stability (coarse only)
+  results/summary/xai_collinearity_{name}.csv               correlation cluster membership
+  results/summary/xai_group_importance_{task}_{name}.csv    group-level (collinear cluster) permutation importance
+  results/summary/xai_volume_correction_{task}_{name}.csv   importance with/without volume and after residual correction
 
-用法
-----
-  PYENV_VERSION=data-analysis python src/s8_xai_region_contribution.py
-  PYENV_VERSION=data-analysis python src/s8_xai_region_contribution.py --quick   # 5x2 折快验
+Usage
+-----
+  python src/s8_xai_region_contribution.py
+  python src/s8_xai_region_contribution.py --quick   # quick 5x2-fold check
 """
 from __future__ import annotations
 import argparse
@@ -73,9 +83,9 @@ SEED = 42
 THRESHOLD = 50          # severe = wab_aq <= 50
 SPARSE_DROP_FRAC = 0.10
 N_SPLITS, N_REPEATS = 5, 10
-N_STRAT_BINS = 4        # 回归连续目标分层分箱(与 s5 一致)
-PERM_REPEATS = 20       # 每折每列置换次数
-COLLIN_THRESH = 0.6     # |Spearman rho| >= 0.6 视为同簇(距离阈值 1-0.6=0.4)
+N_STRAT_BINS = 4        # stratification bins for the continuous regression target (same as s5)
+PERM_REPEATS = 20       # permutations per column per fold
+COLLIN_THRESH = 0.6     # |Spearman rho| >= 0.6 counts as the same cluster (distance threshold 1-0.6=0.4)
 SHAP_TOPK = 8
 
 TABLES = {
@@ -84,7 +94,7 @@ TABLES = {
 }
 
 
-# ----------------------------------------------------------------------------- 数据
+# ----------------------------------------------------------------------------- data
 def load_df(table_rel):
     path = os.path.join(PKG, table_rel)
     df = pd.read_csv(path, sep="\t", index_col="participant_id")
@@ -100,7 +110,7 @@ def load_df(table_rel):
 
 
 def strat_labels(task, y_cont):
-    """分类直接 severe 标签; 回归用 wab_aq 分位分箱(只用于 split, 不进特征)。"""
+    """Classification: the severe label itself; regression: wab_aq quantile bins (used only for splitting, never as features)."""
     if task == "clf":
         return (y_cont.values <= THRESHOLD).astype(int)
     return pd.qcut(y_cont, q=N_STRAT_BINS, labels=False, duplicates="drop").values
@@ -112,20 +122,24 @@ def target_for(task, y_cont):
     return y_cont.values.astype(float)
 
 
-# ----------------------------------------------------------------------------- 折内体积残差化 transformer
+# ----------------------------------------------------------------------------- in-fold volume-residualising transformer
 class VolumeResidualizer(BaseEstimator, TransformerMixin):
-    """折内体积校正: 把指定 region 列对 lesion_volume 列做 OLS 线性残差。
+    """In-fold volume correction: OLS-residualise the given region columns on the lesion_volume column.
 
-    【泄露安全的关键】OLS 系数 (截距+斜率) 只在 fit() 里用【训练折】拟合,
-    transform() 把同一组系数应用到任意折(训练折或测试折)。放进 sklearn pipeline
-    后, pipeline.fit 只见训练折 -> 系数永不接触测试折。permutation_importance 置换的是
-    raw 测试折的列, 经 pipeline.transform 时用训练折系数残差化 -> 无预处理泄露。
+    Leakage guard: the OLS coefficients (intercept + slope) are fit in fit() on the training
+    fold only; transform() applies the same coefficients to any fold (training or test). Inside
+    an sklearn pipeline, pipeline.fit only sees the training fold -> the coefficients never touch
+    the test fold. permutation_importance permutes raw test-fold columns, which pipeline.transform
+    residualises with training-fold coefficients -> no preprocessing leakage.
 
-    旧版 residualize_on_volume() 对【全 226 人】拟合系数后再切折, 系数见过测试折 = 泄露; 已弃用。
+    Fitting the coefficients on all 226 patients before splitting would let them see the test
+    fold (leakage), which is why residualisation is done inside the pipeline.
 
-    参数全用列索引(pipeline 内是 numpy array):
-      vol_idx    : lesion_volume 在特征矩阵的列位置; None 则本步为恒等(不做残差化)。
-      region_idx : 要残差化的列位置列表(排除 volume 与 age)。其余列原样保留。
+    All parameters are column indices (the pipeline works on numpy arrays):
+      vol_idx    : column position of lesion_volume in the feature matrix; None makes this step
+                   the identity (no residualisation).
+      region_idx : list of column positions to residualise (excluding volume and age). Other
+                   columns are kept as is.
     """
     def __init__(self, vol_idx=None, region_idx=None):
         self.vol_idx = vol_idx
@@ -137,11 +151,11 @@ class VolumeResidualizer(BaseEstimator, TransformerMixin):
             self.beta_ = None
             return self
         v = X[:, self.vol_idx]
-        v1 = np.column_stack([np.ones_like(v), v])           # [1, volume] 设计矩阵, 仅训练折
+        v1 = np.column_stack([np.ones_like(v), v])           # [1, volume] design matrix, training fold only
         self.beta_ = {}
         for j in self.region_idx:
             beta, *_ = np.linalg.lstsq(v1, X[:, j], rcond=None)
-            self.beta_[j] = beta                              # (截距, 斜率), 来自训练折
+            self.beta_[j] = beta                              # (intercept, slope), from the training fold
         return self
 
     def transform(self, X):
@@ -151,17 +165,18 @@ class VolumeResidualizer(BaseEstimator, TransformerMixin):
         v = X[:, self.vol_idx]
         v1 = np.column_stack([np.ones_like(v), v])
         for j, beta in self.beta_.items():
-            X[:, j] = X[:, j] - v1 @ beta                     # 用训练折系数算残差
+            X[:, j] = X[:, j] - v1 @ beta                     # residuals using training-fold coefficients
         return X
 
 
-# ----------------------------------------------------------------------------- 模型
+# ----------------------------------------------------------------------------- models
 def build_pipe(task, residualizer=None):
-    """主表口径: clf = scaler->SMOTE->RF(500); reg = scaler->RF(默认)。
-    置换重要度作用在 pipeline 上, 故 scaler/SMOTE/residualizer 只在 fit 时见训练折。
+    """Main-table setup: clf = scaler->SMOTE->RF(500); reg = scaler->RF (default).
+    Permutation importance acts on the pipeline, so scaler/SMOTE/residualizer only see the training fold at fit time.
 
-    residualizer: 若给一个 VolumeResidualizer 实例, 插在 scaler 之前(用 raw volume 残差化),
-                  其系数在 pipeline.fit 时只见训练折 -> 折内体积校正, 无泄露。"""
+    residualizer: if a VolumeResidualizer instance is given, it is inserted before the scaler (residualising on raw
+                  volume); its coefficients only see the training fold in pipeline.fit -> in-fold volume correction,
+                  no leakage."""
     steps = []
     if residualizer is not None:
         steps.append(("resid", residualizer))
@@ -175,8 +190,8 @@ def build_pipe(task, residualizer=None):
 
 
 def make_residualizer(feat, vol_col="lesion_volume"):
-    """据特征名构造一个折内 VolumeResidualizer: 对 region 列(排除 volume/age)残差化。
-    若 feat 里没有 volume 列, 返回 None(本粒度不做体积校正)。"""
+    """Build an in-fold VolumeResidualizer from the feature names: residualise region columns (excluding volume/age).
+    Returns None if feat has no volume column (no volume correction for this granularity)."""
     if vol_col not in feat:
         return None
     vol_idx = feat.index(vol_col)
@@ -185,20 +200,24 @@ def make_residualizer(feat, vol_col="lesion_volume"):
 
 
 def perm_scoring(task):
-    # 分类用 balanced_accuracy(主指标); 回归用 R2(permutation_importance 默认 estimator.score=R2)
+    # classification: balanced_accuracy (primary metric); regression: R2 (permutation_importance default estimator.score = R2)
     return "balanced_accuracy" if task == "clf" else "r2"
 
 
-# ----------------------------------------------------------------------------- 1) 折外置换重要度
+# ----------------------------------------------------------------------------- 1) out-of-fold permutation importance
 def _oof_perm(task, X, y, strat, feat, n_repeats_outer, group_cols=None, residualize=False):
-    """每折在【测试折】上对拟合好的 pipeline 做置换重要度, 跨折聚合。
+    """Permutation importance of the fitted pipeline on each test fold, aggregated across folds.
 
-    group_cols: 若给 {组名: [列名...]}, 改成【组级】置换(一组列一起 shuffle, 共线簇用);
-                None 则列级置换, 每列单独。
-    residualize: True 则在 pipeline 里插一个折内 VolumeResidualizer(每折新建, fit 只见训练折)。
-                 体积校正的 C 套用它 -> 系数永不接触测试折, 无预处理泄露。
-    返回 DataFrame: unit = 列名(或组名), importance_mean/std/cv, frac_folds_positive, n_folds。
-    置换作用在 raw 测试折上, pipeline.predict 不触发 SMOTE, scaler/resid 已 fit 于训练折 -> 无泄露。
+    group_cols: if given as {group name: [column names...]}, switch to group-level permutation
+                (a group's columns are shuffled together; used for collinear clusters);
+                None means per-column permutation.
+    residualize: if True, insert an in-fold VolumeResidualizer into the pipeline (new per fold,
+                 fit only on the training fold). Used by volume-correction set C -> coefficients
+                 never touch the test fold, no preprocessing leakage.
+    Returns a DataFrame: unit = column name (or group name), importance_mean/std/cv,
+    frac_folds_positive, n_folds.
+    Permutation acts on the raw test fold; pipeline.predict does not trigger SMOTE, and
+    scaler/resid are already fit on the training fold -> no leakage.
     """
     Xv = X.values
     scorer = perm_scoring(task)
@@ -214,7 +233,7 @@ def _oof_perm(task, X, y, strat, feat, n_repeats_outer, group_cols=None, residua
     per_fold = {u: [] for u in units}
     n_folds = outer.get_n_splits()
     for i, (tr, te) in enumerate(outer.split(Xv, strat)):
-        # 每折新建 residualizer, 避免跨折共享已拟合系数; fit 仅在训练折(pipe.fit 内)
+        # new residualizer per fold so fitted coefficients are never shared across folds; fit on the training fold only (inside pipe.fit)
         resid = make_residualizer(feat) if residualize else None
         pipe = build_pipe(task, residualizer=resid)
         pipe.fit(Xv[tr], y[tr])
@@ -230,13 +249,13 @@ def _oof_perm(task, X, y, strat, feat, n_repeats_outer, group_cols=None, residua
             for _ in range(PERM_REPEATS):
                 Xp = Xte.copy()
                 perm = rng.permutation(len(Xp))
-                for j in idxs:                       # 同组列用同一 perm 一起打乱
+                for j in idxs:                       # columns of one group are shuffled together with the same perm
                     Xp[:, j] = Xte[perm, j]
                 if task == "clf":
                     s = balanced_accuracy_score(yte, pipe.predict(Xp))
                 else:
                     s = pipe.score(Xp, yte)
-                drops.append(base - s)               # 掉得越多越重要
+                drops.append(base - s)               # larger drop = more important
             per_fold[u].append(float(np.mean(drops)))
         if (i + 1) % 5 == 0 or (i + 1) == n_folds:
             print(f"    [perm:{task}] fold {i+1}/{n_folds}", flush=True)
@@ -257,25 +276,27 @@ def _oof_perm(task, X, y, strat, feat, n_repeats_outer, group_cols=None, residua
     return out
 
 
-# ----------------------------------------------------------------------------- 2) SHAP(仅 coarse)
+# ----------------------------------------------------------------------------- 2) SHAP (coarse only)
 def oof_shap(task, X, y, strat, feat, n_repeats_outer):
-    """每折 TreeExplainer 在测试折上算 SHAP, 折外聚合 mean(|SHAP|)。
-    并报跨折 top-k 稳定性: 每折各自的 top-k 集合, 计算各区出现频率 + 跨折 rank 标准差。
+    """Per fold, TreeExplainer computes SHAP on the test fold; aggregated out-of-fold as mean(|SHAP|).
+    Also reports cross-fold top-k stability: from each fold's own top-k set, each region's frequency
+    in the top-k + cross-fold rank std.
 
-    注意: TreeExplainer 直接吃 RF, 不吃 SMOTE; 故用纯 scaler->RF 拟合后对 scaled 测试折算 SHAP,
-    特征语义不变(scaler 单调线性), top 区相对顺序可比。"""
+    Note: TreeExplainer takes the RF directly, not the SMOTE pipeline; so scaler and RF are fit
+    separately and SHAP is computed on the scaled test fold. Feature meaning is unchanged (the scaler
+    is a monotone linear map), so the relative order of top regions is comparable."""
     import shap
     Xv = X.values
     outer = RepeatedStratifiedKFold(n_splits=N_SPLITS, n_repeats=n_repeats_outer,
                                     random_state=SEED)
     n_folds = outer.get_n_splits()
-    abs_shap_per_fold = []     # 每折 mean|shap| over test patients, shape [n_feat]
-    rank_per_fold = []         # 每折按 mean|shap| 的 rank
+    abs_shap_per_fold = []     # per fold: mean|shap| over test patients, shape [n_feat]
+    rank_per_fold = []         # per fold: rank by mean|shap|
     for i, (tr, te) in enumerate(outer.split(Xv, strat)):
         scaler = StandardScaler().fit(Xv[tr])
         Xtr_s, Xte_s = scaler.transform(Xv[tr]), scaler.transform(Xv[te])
         if task == "clf":
-            # SMOTE 仅训练折(与主表口径一致), SHAP 在原始测试折上算
+            # SMOTE on the training fold only (same as the main table); SHAP on the non-oversampled test fold
             Xtr_r, ytr_r = SMOTE(random_state=SEED).fit_resample(Xtr_s, y[tr])
             rf = RandomForestClassifier(n_estimators=500, random_state=SEED, n_jobs=-1)
             rf.fit(Xtr_r, ytr_r)
@@ -289,7 +310,7 @@ def oof_shap(task, X, y, strat, feat, n_repeats_outer):
             sv = expl.shap_values(Xte_s, check_additivity=False)
         mabs = np.abs(sv).mean(axis=0)          # [n_feat]
         abs_shap_per_fold.append(mabs)
-        order = np.argsort(-mabs)               # 大到小
+        order = np.argsort(-mabs)               # descending
         ranks = np.empty(len(feat), dtype=float)
         ranks[order] = np.arange(1, len(feat) + 1)
         rank_per_fold.append(ranks)
@@ -303,7 +324,7 @@ def oof_shap(task, X, y, strat, feat, n_repeats_outer):
     mean_rank = rank_per_fold.mean(axis=0)
     std_rank = rank_per_fold.std(axis=0)
     topk = min(SHAP_TOPK, len(feat))
-    in_topk_frac = (rank_per_fold <= topk).mean(axis=0)   # 该区落进 top-k 的折比例
+    in_topk_frac = (rank_per_fold <= topk).mean(axis=0)   # fraction of folds where the region is in the top-k
 
     df = pd.DataFrame({
         "feature": feat,
@@ -318,24 +339,24 @@ def oof_shap(task, X, y, strat, feat, n_repeats_outer):
 
 
 def _pick_positive_class_shap(sv):
-    """兼容不同 shap 版本对二分类 RF 的返回形态, 取 severe(正类=1)的 SHAP。"""
-    if isinstance(sv, list):                    # 旧版: [class0_arr, class1_arr]
+    """Handle the return shapes of different shap versions for a binary RF; return SHAP for the severe (positive = 1) class."""
+    if isinstance(sv, list):                    # older shap: [class0_arr, class1_arr]
         return np.asarray(sv[1])
     sv = np.asarray(sv)
-    if sv.ndim == 3:                            # 新版: [n, n_feat, n_classes]
+    if sv.ndim == 3:                            # newer shap: [n, n_feat, n_classes]
         return sv[:, :, 1]
     return sv
 
 
-# ----------------------------------------------------------------------------- 3) 共线性聚类
+# ----------------------------------------------------------------------------- 3) collinearity clustering
 def collinearity_clusters(X, feat):
-    """Spearman |rho| 层次聚类。距离 = 1 - |rho|, 平均链接, 阈值 1-COLLIN_THRESH。
-    返回 (cluster_df 长表, group_cols dict 组名->列名列表, corr DataFrame)。"""
+    """Hierarchical clustering on Spearman |rho|. Distance = 1 - |rho|, average linkage, threshold 1-COLLIN_THRESH.
+    Returns (cluster_df long table, group_cols dict group name -> list of column names, corr DataFrame)."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         rho, _ = spearmanr(X.values)
     rho = np.atleast_2d(rho)
-    if rho.shape[0] != len(feat):               # spearmanr 在 2 列时返回标量, 兜底
+    if rho.shape[0] != len(feat):               # spearmanr returns a scalar for 2 columns; fallback
         rho = np.corrcoef(X.values.T)
     absrho = np.abs(rho)
     np.fill_diagonal(absrho, 1.0)
@@ -351,7 +372,7 @@ def collinearity_clusters(X, feat):
         members = [feat[k] for k in range(len(feat)) if labels[k] == lab]
         gname = f"cluster{lab}" if len(members) > 1 else members[0]
         group_cols[gname] = members
-        # 簇内最大 |rho|(单成员置 1)
+        # maximum |rho| within the cluster (1 for single-member clusters)
         if len(members) > 1:
             idxs = [feat.index(m) for m in members]
             sub = absrho[np.ix_(idxs, idxs)].copy()
@@ -367,7 +388,7 @@ def collinearity_clusters(X, feat):
 
 
 def annotate_collinear(perm_df, feat, corr_df, top_n=8):
-    """给 top-n 区标注: 与哪些其它 top 区 |rho|>=COLLIN_THRESH (共线伙伴)。"""
+    """Annotate the top-n regions with the other top regions they are collinear with (|rho| >= COLLIN_THRESH)."""
     top_feats = [u for u in perm_df["unit"].tolist()[:top_n] if u in feat]
     notes = {}
     for f in top_feats:
@@ -378,21 +399,24 @@ def annotate_collinear(perm_df, feat, corr_df, top_n=8):
     return perm_df
 
 
-# ----------------------------------------------------------------------------- 4) 体积校正(折内)
+# ----------------------------------------------------------------------------- 4) volume correction (in-fold)
 def volume_correction(task, X, y, strat, feat, n_repeats_outer):
-    """三套折外置换重要度对比:
-      A_full     : 原特征(含 volume)
-      B_no_vol   : 去掉 lesion_volume 列后重新建模(看 top 脑区重要度是否暴涨=之前被 volume 吸走)
-      C_resid    : 脑区列对 volume【折内】残差化后(去总病灶量线性成分), 看脑区是否还重要。
-                   残差化系数每折只用训练折拟合 -> 无泄露(VolumeResidualizer 进 pipeline)。
-    返回合并长表: feature, imp_full, imp_no_vol, imp_resid (均为 mean), 及对应 std。"""
+    """Compare three sets of out-of-fold permutation importance:
+      A_full     : original features (including volume)
+      B_no_vol   : model rebuilt without the lesion_volume column (does top-region importance jump,
+                   i.e. was it previously absorbed by volume?)
+      C_resid    : region columns residualised on volume within fold (linear component of total
+                   lesion load removed); are the regions still important?
+                   Residualisation coefficients are fit on the training fold only in each fold
+                   -> no leakage (VolumeResidualizer inside the pipeline).
+    Returns a merged long table: feature, imp_full, imp_no_vol, imp_resid (all means), plus the matching std."""
     a = _oof_perm(task, X, y, strat, feat, n_repeats_outer).set_index("unit")
 
     feat_b = [c for c in feat if c != "lesion_volume"]
     Xb = X[feat_b]
     b = _oof_perm(task, Xb, y, strat, feat_b, n_repeats_outer).set_index("unit")
 
-    # C 套: 同一份 raw X/feat, 由 pipeline 内 VolumeResidualizer 做折内残差化(系数仅训练折)
+    # set C: same raw X/feat; in-fold residualisation by the VolumeResidualizer inside the pipeline (coefficients from the training fold only)
     c = _oof_perm(task, X, y, strat, feat, n_repeats_outer, residualize=True).set_index("unit")
     feat_c = feat
 
@@ -407,7 +431,7 @@ def volume_correction(task, X, y, strat, feat, n_repeats_outer):
             "imp_noVol_std":   round(float(b.loc[f, "importance_std"]), 5) if f in b.index else np.nan,
             "imp_resid_mean":  round(float(c.loc[f, "importance_mean"]), 5) if f in c.index else np.nan,
             "imp_resid_std":   round(float(c.loc[f, "importance_std"]), 5) if f in c.index else np.nan,
-            # 残差化后该列跨折为正的比例: 用作 "显著>0" 的稳健近似(perm 无解析 p 值)
+            # fraction of folds with positive importance after residualisation: robust proxy for "significantly > 0" (permutation has no analytic p-value)
             "resid_frac_folds_positive": round(float(c.loc[f, "frac_folds_positive"]), 3) if f in c.index else np.nan,
             "resid_retained_ratio": round(float(c.loc[f, "importance_mean"]) /
                                           float(a.loc[f, "importance_mean"]), 3)
@@ -415,16 +439,17 @@ def volume_correction(task, X, y, strat, feat, n_repeats_outer):
                                     else np.nan,
         })
     out = pd.DataFrame(rows)
-    # region_specific_flag = 折内体积校正后仍 "显著>0":
-    #   残差后均值 > 0  且  >=60% 折为正(跨折一致, 非偶然单折)。
-    #   不依赖与 full 的相对比例(retained_ratio 仅作参考列), 避免把 "残差后仍大" 误判为 "脑区特异"。
+    # region_specific_flag = still "significantly > 0" after in-fold volume correction:
+    #   residual mean > 0  and  positive in >= 60% of folds (consistent across folds, not a single-fold fluke).
+    #   Does not depend on the ratio to the full model (retained_ratio is a reference column only),
+    #   to avoid misreading "still large after residualisation" as "region-specific".
     out["region_specific_flag"] = (out["imp_resid_mean"] > 0) & \
         (out["resid_frac_folds_positive"] >= 0.60)
     out = out.sort_values("imp_full_mean", ascending=False).reset_index(drop=True)
     return out
 
 
-# ----------------------------------------------------------------------------- 主流程
+# ----------------------------------------------------------------------------- main flow
 def run(name, table_rel, n_repeats_outer, do_shap):
     print(f"\n========== {name} ({table_rel}) ==========", flush=True)
     X, y_cont, feat = load_df(table_rel)
@@ -441,18 +466,18 @@ def run(name, table_rel, n_repeats_outer, do_shap):
         strat = strat_labels(task, y_cont)
         y = target_for(task, y_cont)
 
-        # 1) 列级折外置换重要度 + 共线标注
+        # 1) column-level out-of-fold permutation importance + collinearity annotation
         perm = _oof_perm(task, X, y, strat, feat, n_repeats_outer)
         perm = annotate_collinear(perm, feat, corr_df, top_n=8)
         perm.to_csv(os.path.join(SUMMARY, f"xai_perm_importance_{task}_{name}.csv"), index=False)
 
-        # 3) 组级(共线簇)置换重要度
+        # 3) group-level (collinear cluster) permutation importance
         grp = _oof_perm(task, X, y, strat, feat, n_repeats_outer, group_cols=group_cols)
         grp = grp.rename(columns={"unit": "cluster"})
         grp["members"] = grp["cluster"].map(lambda g: "|".join(group_cols.get(g, [g])))
         grp.to_csv(os.path.join(SUMMARY, f"xai_group_importance_{task}_{name}.csv"), index=False)
 
-        # 4) 体积校正
+        # 4) volume correction
         volc = volume_correction(task, X, y, strat, feat, n_repeats_outer)
         volc.to_csv(os.path.join(SUMMARY, f"xai_volume_correction_{task}_{name}.csv"), index=False)
 
@@ -466,13 +491,13 @@ def run(name, table_rel, n_repeats_outer, do_shap):
                   f"pos_folds={r['frac_folds_positive']:.0%} collin=[{r['collinear_with_top']}]",
                   flush=True)
 
-        # 2) SHAP(仅 coarse, 两任务都做)
+        # 2) SHAP (coarse only, both tasks)
         if do_shap:
             shp = oof_shap(task, X, y, strat, feat, n_repeats_outer)
             shp.to_csv(os.path.join(SUMMARY, f"xai_shap_{task}_{name}.csv"), index=False)
             results[task]["shap"] = shp
             topk = min(SHAP_TOPK, len(feat))
-            print(f"    SHAP top5 ({task}), frac_in_top{topk} = 跨折稳定性:", flush=True)
+            print(f"    SHAP top5 ({task}), frac_in_top{topk} = cross-fold stability:", flush=True)
             for _, r in shp.head(5).iterrows():
                 print(f"      {r['feature']:16s} mean|SHAP|={r['mean_abs_shap']:.4f} "
                       f"rank={r['mean_rank']:.1f}±{r['std_rank']:.1f} "
@@ -483,26 +508,26 @@ def run(name, table_rel, n_repeats_outer, do_shap):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--quick", action="store_true", help="5x2 折快验(默认 5x10)")
-    ap.add_argument("--coarse-only", action="store_true", help="只跑 arterial_coarse")
+    ap.add_argument("--quick", action="store_true", help="quick 5x2-fold check (default 5x10)")
+    ap.add_argument("--coarse-only", action="store_true", help="run arterial_coarse only")
     args = ap.parse_args()
     os.makedirs(SUMMARY, exist_ok=True)
     n_rep = 2 if args.quick else N_REPEATS
 
-    print(f"XAI RandomForest 脑区贡献分析  outer={N_SPLITS}x{n_rep}  perm_repeats={PERM_REPEATS}  "
+    print(f"XAI RandomForest region-contribution analysis  outer={N_SPLITS}x{n_rep}  perm_repeats={PERM_REPEATS}  "
           f"collin_thresh|rho|>={COLLIN_THRESH}", flush=True)
-    print("口径: 预测关联 predictive association, 非因果定位。", flush=True)
+    print("Scope: predictive association, not causal localisation.", flush=True)
 
     t0 = time.time()
-    # arterial_coarse 做全套(含 SHAP); JHU_fine 做置换/组级/体积(SHAP 维度大不强制)
+    # arterial_coarse gets the full set (incl. SHAP); JHU_fine gets permutation/group/volume (SHAP optional at high dimension)
     run("arterial_coarse", TABLES["arterial_coarse"], n_rep, do_shap=True)
     if not args.coarse_only:
         run("JHU_fine", TABLES["JHU_fine"], n_rep, do_shap=False)
     print(f"\nDONE in {time.time()-t0:.0f}s. outputs -> results/summary/xai_*.csv", flush=True)
 
-    print("\n[解释边界] 这些是【预测关联】: 扰动该列降低折外预测准确性, "
-          "不代表该脑区因果导致严重失语。共线簇内单区重要度不可单独解读; "
-          "残差校正只去 lesion_volume 的线性成分, 非线性共变仍可能残留。", flush=True)
+    print("\n[Interpretation limits] These are predictive associations: perturbing a column lowers out-of-fold predictive accuracy; "
+          "this does not mean the region causes severe aphasia. Single-region importance within a collinear cluster should not be read on its own; "
+          "residual correction removes only the linear component of lesion_volume, so nonlinear covariation may remain.", flush=True)
 
 
 if __name__ == "__main__":

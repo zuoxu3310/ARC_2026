@@ -3,19 +3,25 @@
 """
 s22_granularity_spectrum.py
 ===========================
-任务2: 图谱粒度谱。同一条固定管线(强模型 + 折内 scaler/SMOTE)跑不同粒度图谱,
-看"粒度-分数曲线"是否封顶——证实并延伸 Tilwani 的"换图谱主效应不显著"。
+Atlas granularity spectrum. One fixed pipeline (strong models + in-fold scaler/SMOTE)
+is run on atlases of different granularity to check whether the granularity-vs-score
+curve plateaus - confirming and extending Tilwani et al.'s finding that the atlas
+main effect is not significant.
 
-粒度点(全队列 226, full cohort): 由 --tables 给的特征表决定。本机现成:
-  1 区   = floor_volage_features.tsv (lesion_volume+age, 整脑负荷)
-  33 区  = ArterialAtlas156_features_merged.tsv
-  189 区 = jhu156_features_merged.tsv
-(可扩展: 下 AAL108/AICHA384 重采样到本网格 -> s2 提取 -> 加进 --tables)
+Granularity points (full cohort, n=226) are defined by the feature tables in
+GRANULARITIES, e.g.:
+  1 region     = floor_volage_features.tsv (lesion_volume + age, whole-brain load)
+  33 regions   = ArterialAtlas156_features_merged.tsv
+  189 regions  = jhu156_features_merged.tsv
+(Extensible: resample another atlas, e.g. AAL/AICHA, to this grid -> extract with s2
+ -> add its table to GRANULARITIES.)
 
-输出: 每粒度 × 任务的 r/bACC(逐种子均值+SD) + 相邻粒度 TOST 等价(复用思路)。
-复用 s18 的单元跑法/模型工厂, 保证与任务3 同一条管线。
+Output: r / bACC per granularity x task (mean + SD over seeds) and TOST equivalence
+between adjacent granularities.
+Reuses the s18 cell runner / model factory so the pipeline is identical to the
+crossed-grid analysis.
 
-用法: PYENV_VERSION=data-analysis python src/s22_granularity_spectrum.py --seeds 20
+Usage: python src/s22_granularity_spectrum.py --seeds 20
 """
 from __future__ import annotations
 import argparse
@@ -34,7 +40,8 @@ DATA = os.path.join(PKG, "data")
 COMP_REG = ["RandomForest", "XGBoost", "LightGBM"]
 COMP_CLF = ["RandomForest", "XGBoost", "LightGBM", "LogReg"]
 
-# 粒度点: (label, n_regions_nominal, 特征表相对 data/ 路径)。1→33→41→116→189→384 六点谱。
+# Granularity points: (label, n_regions_nominal, feature table path relative to data/).
+# Six-point spectrum: 1 -> 33 -> 41 -> 116 -> 189 -> 384 regions.
 GRANULARITIES = [
     ("vol_1", 1, "floor_volage_features.tsv"),
     ("arterial_33", 33, "ArterialAtlas156_features_merged.tsv"),
@@ -52,7 +59,7 @@ def load_table(rel):
     feat = df.drop(columns=["wab_aq"])
     n = len(feat)
     keep = [c for c in feat.columns if (feat[c] != 0).sum() > g.SPARSE_DROP_FRAC * n]
-    # 至少保留 lesion_volume(1 区情形它本身就是唯一信息)
+    # Always keep at least lesion_volume (in the 1-region case it is the only information)
     if not keep:
         keep = list(feat.columns)
     return feat[keep], y_aq, len(keep)
@@ -62,7 +69,7 @@ def run_granularity(task, seeds):
     runner = g.run_cell_regression if task == "regression" else g.run_cell_classification
     models = COMP_REG if task == "regression" else COMP_CLF
     rows = []
-    percell = {}   # (gran) -> list of per-(model,seed) scores, 供 TOST
+    percell = {}   # (gran) -> list of per-(model,seed) scores, used for TOST
     for label, nreg, rel in GRANULARITIES:
         X, y, nfeat = load_table(rel)
         scores = []
@@ -82,7 +89,8 @@ def run_granularity(task, seeds):
 
 
 def tost_adjacent(percell, labels, bound=0.05):
-    """相邻粒度 TOST 等价(配对 bootstrap 简化: 用两组分数差的 90%CI 是否落 ±bound)。"""
+    """TOST equivalence between adjacent granularities (simplified paired bootstrap:
+    equivalent if the 90% CI of the score difference lies within +/-bound)."""
     out = []
     for a, b in zip(labels[:-1], labels[1:]):
         da, db = percell[a], percell[b]
@@ -108,7 +116,7 @@ def main():
 
     all_rows, all_tost = [], []
     for task in ["regression", "classification"]:
-        print(f"=== {task} 粒度谱 ===", flush=True)
+        print(f"=== {task} granularity spectrum ===", flush=True)
         rows, percell = run_granularity(task, seeds)
         labels = [r[0] for r in GRANULARITIES]
         tost = tost_adjacent(percell, labels)
